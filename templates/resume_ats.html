@@ -255,7 +255,30 @@
     <h2>Certifications</h2>
     <ul class="bullet-list">
       {% for cert in certifications %}
-      <li>{{ cert }}</li>
+      <li>
+        {% if cert is mapping %}
+          {% if cert.link %}<a href="{{ cert.link }}" style="color: #1d4ed8; text-decoration: none;">{{ cert.name }}</a>{% else %}{{ cert.name }}{% endif %}
+        {% else %}
+          {{ cert }}
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  {% if publications %}
+  <section id="publications">
+    <h2>Publications & Research</h2>
+    <ul class="bullet-list">
+      {% for pub in publications %}
+      <li>
+        {% if pub is mapping %}
+          {% if pub.link %}<a href="{{ pub.link }}" style="color: #1d4ed8; text-decoration: none;">{{ pub.title }}</a>{% else %}{{ pub.title }}{% endif %}
+        {% else %}
+          {{ pub }}
+        {% endif %}
+      </li>
       {% endfor %}
     </ul>
   </section>
@@ -263,3 +286,4 @@
 
 </body>
 </html>
+

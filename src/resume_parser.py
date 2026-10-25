@@ -1,8 +1,8 @@
 import json
 from pathlib import Path
-from typing import Any, Dict, Optional
-import pypdf
+from typing import Any, Dict, List, Optional, Tuple
 import pdfplumber
+import pypdf
 from google import genai
 from google.genai import types
 
@@ -11,7 +11,7 @@ from src.config import BASE_DIR, load_config
 
 RESUME_SCHEMA_PROMPT = """
 You are an expert resume parser and ATS engineer.
-Parse the following raw resume text extracted from a PDF and convert it into a structured, clean JSON object.
+Parse the following raw resume text and extracted clickable hyperlinks from a PDF, and convert it into a structured, clean JSON object.
 
 Strict JSON format to produce:
 {
@@ -20,9 +20,9 @@ Strict JSON format to produce:
     "email": "user@example.com",
     "phone": "+91...",
     "location": "City, State",
-    "linkedin": "linkedin.com/in/...",
-    "github": "github.com/...",
-    "portfolio": "..."
+    "linkedin": "https://linkedin.com/in/...",
+    "github": "https://github.com/...",
+    "portfolio": "https://..."
   },
   "summary": "Professional summary paragraph...",
   "skills": {
@@ -65,37 +65,96 @@ Strict JSON format to produce:
     }
   ],
   "certifications": [
-    "AWS Certified Solutions Architect",
-    "..."
+    {
+      "name": "Certificate Name",
+      "link": "https://..."
+    }
+  ],
+  "publications": [
+    {
+      "title": "Paper Title",
+      "link": "https://doi.org/..."
+    }
   ]
 }
 
 Instructions:
 1. Extract ALL details accurately. Do not omit any work experience or technical skills.
-2. If certain links or contact info are not present, set them to empty strings.
-3. Return ONLY valid JSON, with no markdown code blocks or surrounding commentary.
+2. CRITICAL - HYPERLINKS & URLs:
+   - Pay close attention to the "EXTRACTED CLICKABLE HYPERLINKS" section below.
+   - Associate each URL with its proper entity:
+     - Map portfolio URL to contact.portfolio
+     - Map github URL to contact.github
+     - Map linkedin URL to contact.linkedin
+     - Map project demo / code URLs to the corresponding item in the projects array as "link"
+     - Map certificate drive links to certifications array as "link"
+     - Map publication/DOI URLs to publications array as "link"
+3. If certain links or contact info are not present, set them to empty strings.
+4. Return ONLY valid JSON, with no markdown code blocks or surrounding commentary.
 """
 
 
-def extract_text_from_pdf(pdf_path: Path) -> str:
-    """Extract plain text from PDF using pdfplumber, falling back to pypdf."""
+def extract_text_and_links_from_pdf(pdf_path: Path) -> Tuple[str, List[Dict[str, str]]]:
+    """
+    Extracts visible text and all embedded clickable hyperlinks / annotations
+    from a PDF using pdfplumber and pypdf.
+    """
     text_content = []
+    extracted_links = []
+
+    # 1. Try pdfplumber for both text and hyperlinks
     try:
         with pdfplumber.open(pdf_path) as pdf:
-            for page in pdf.pages:
-                extracted = page.extract_text()
-                if extracted:
-                    text_content.append(extracted)
-    except Exception as e:
-        print(f"pdfplumber extraction failed: {e}. Falling back to pypdf.")
-        with open(pdf_path, "rb") as f:
-            reader = pypdf.PdfReader(f)
-            for page in reader.pages:
-                extracted = page.extract_text()
-                if extracted:
-                    text_content.append(extracted)
+            for page_idx, page in enumerate(pdf.pages, 1):
+                page_text = page.extract_text()
+                if page_text:
+                    text_content.append(page_text)
 
-    return "\n\n".join(text_content).strip()
+                for link in getattr(page, "hyperlinks", []):
+                    uri = link.get("uri")
+                    if uri:
+                        anchor_text = ""
+                        try:
+                            bbox = (link["x0"], link["top"], link["x1"], link["bottom"])
+                            cropped = page.crop(bbox)
+                            anchor_text = cropped.extract_text() or ""
+                        except Exception:
+                            pass
+                        extracted_links.append({
+                            "page": str(page_idx),
+                            "anchor": anchor_text.strip(),
+                            "url": uri
+                        })
+    except Exception as e:
+        print(f"pdfplumber extraction note: {e}")
+
+    # Fallback/supplement with pypdf if text or links missing
+    if not text_content or not extracted_links:
+        try:
+            reader = pypdf.PdfReader(str(pdf_path))
+            if not text_content:
+                for page in reader.pages:
+                    t = page.extract_text()
+                    if t:
+                        text_content.append(t)
+
+            if not extracted_links:
+                for page_idx, page in enumerate(reader.pages, 1):
+                    if "/Annots" in page:
+                        for annot in page["/Annots"]:
+                            obj = annot.get_object()
+                            if obj.get("/Subtype") == "/Link":
+                                action = obj.get("/A")
+                                if action and "/URI" in action:
+                                    extracted_links.append({
+                                        "page": str(page_idx),
+                                        "anchor": str(obj.get("/Contents", "")),
+                                        "url": str(action["/URI"])
+                                    })
+        except Exception as e:
+            print(f"pypdf extraction note: {e}")
+
+    return "\n\n".join(text_content).strip(), extracted_links
 
 
 def parse_master_resume(
@@ -122,15 +181,24 @@ def parse_master_resume(
             "GEMINI_API_KEY is not set. Please add it to your .env file or environment variables."
         )
 
-    print(f"Extracting raw text from {target_pdf.name}...")
-    raw_text = extract_text_from_pdf(target_pdf)
+    print(f"Extracting raw text and clickable hyperlinks from {target_pdf.name}...")
+    raw_text, extracted_links = extract_text_and_links_from_pdf(target_pdf)
     if not raw_text:
         raise ValueError(f"Could not extract any readable text from {target_pdf}. Ensure it is not a scanned image PDF.")
 
-    print(f"Extracted {len(raw_text)} characters. Structuring resume with Gemini [{selected_model}]...")
-    client = genai.Client(api_key=gemini_key)
+    # Format extracted hyperlinks for the prompt
+    links_section_lines = ["\nEXTRACTED CLICKABLE HYPERLINKS IN DOCUMENT:"]
+    for idx, l in enumerate(extracted_links, 1):
+        anchor = f"'{l['anchor']}'" if l['anchor'] else "(No Anchor Text)"
+        links_section_lines.append(f"{idx}. Anchor: {anchor} (Page {l['page']}) -> URL: {l['url']}")
 
-    prompt = f"{RESUME_SCHEMA_PROMPT}\n\nRAW RESUME TEXT:\n{raw_text}"
+    links_section = "\n".join(links_section_lines)
+    print(f"Extracted {len(raw_text)} chars of text and {len(extracted_links)} clickable hyperlinks.")
+    print(f"Structuring resume with Gemini [{selected_model}]...")
+
+    client = genai.Client(api_key=gemini_key)
+    prompt = f"{RESUME_SCHEMA_PROMPT}\n\nRAW RESUME TEXT:\n{raw_text}\n{links_section}"
+
     try:
         response = client.models.generate_content(
             model=selected_model,
@@ -143,13 +211,12 @@ def parse_master_resume(
     except Exception as e:
         err_msg = str(e)
         if "404" in err_msg or "NOT_FOUND" in err_msg or "not found" in err_msg.lower():
-            from src.models_manager import list_available_models, display_models_table
+            from src.models_manager import display_models_table, list_available_models
             print(f"\n[!] Model '{selected_model}' is not available or has been retired by Google.")
             models = list_available_models(api_key=gemini_key)
             display_models_table(models, current_model=selected_model)
-            print(f"Tip: Run `python main.py set-model <model-name>` or pass `--model <model-name>`.\n")
+            print("Tip: Run `python main.py set-model <model-name>` or pass `--model <model-name>`.\n")
         raise
-
 
     clean_text = response.text.strip()
     if clean_text.startswith("```json"):
@@ -170,7 +237,7 @@ def parse_master_resume(
     md_path = target_output.with_suffix(".md")
     export_profile_to_markdown(parsed_data, md_path)
 
-    print(f"Successfully created structured master profile:")
+    print(f"✓ Successfully created structured master profile:")
     print(f" - JSON: {target_output}")
     print(f" - Markdown: {md_path}")
 
@@ -180,14 +247,21 @@ def parse_master_resume(
 def export_profile_to_markdown(profile: Dict[str, Any], output_path: Path):
     """Exports structured resume profile to a clean, human-readable Markdown format."""
     contact = profile.get("contact", {})
-    contact_parts = [
-        contact.get("email", ""),
-        contact.get("phone", ""),
-        contact.get("location", ""),
-        contact.get("linkedin", ""),
-        contact.get("github", "")
-    ]
-    contact_line = " | ".join([p for p in contact_parts if p])
+    contact_parts = []
+    if contact.get("email"):
+        contact_parts.append(f"[{contact['email']}](mailto:{contact['email']})")
+    if contact.get("phone"):
+        contact_parts.append(contact["phone"])
+    if contact.get("location"):
+        contact_parts.append(contact["location"])
+    if contact.get("linkedin"):
+        contact_parts.append(f"[LinkedIn]({contact['linkedin']})")
+    if contact.get("github"):
+        contact_parts.append(f"[GitHub]({contact['github']})")
+    if contact.get("portfolio"):
+        contact_parts.append(f"[Portfolio]({contact['portfolio']})")
+
+    contact_line = " | ".join(contact_parts)
 
     lines = [
         f"# {profile.get('name', 'Your Name')}",
@@ -222,7 +296,10 @@ def export_profile_to_markdown(profile: Dict[str, Any], output_path: Path):
         lines.append("## Key Projects")
         for proj in profile.get("projects", []):
             tech = f" ({', '.join(proj.get('tech_stack', []))})" if proj.get("tech_stack") else ""
-            lines.append(f"### {proj.get('title', '')}{tech}")
+            title = proj.get("title", "")
+            link = proj.get("link", "")
+            title_md = f"[{title}]({link})" if link else title
+            lines.append(f"### {title_md}{tech}")
             for b in proj.get("bullets", []):
                 lines.append(f"- {b}")
             lines.append("")
@@ -236,7 +313,23 @@ def export_profile_to_markdown(profile: Dict[str, Any], output_path: Path):
     if profile.get("certifications"):
         lines.append("## Certifications")
         for cert in profile.get("certifications", []):
-            lines.append(f"- {cert}")
+            if isinstance(cert, dict):
+                c_name = cert.get("name", "")
+                c_link = cert.get("link", "")
+                lines.append(f"- [{c_name}]({c_link})" if c_link else f"- {c_name}")
+            else:
+                lines.append(f"- {cert}")
+        lines.append("")
+
+    if profile.get("publications"):
+        lines.append("## Publications")
+        for pub in profile.get("publications", []):
+            if isinstance(pub, dict):
+                p_title = pub.get("title", "")
+                p_link = pub.get("link", "")
+                lines.append(f"- [{p_title}]({p_link})" if p_link else f"- {p_title}")
+            else:
+                lines.append(f"- {pub}")
         lines.append("")
 
     with open(output_path, "w", encoding="utf-8") as f:
