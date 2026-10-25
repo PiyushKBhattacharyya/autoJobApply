@@ -64,12 +64,17 @@ def save_job(job_data: Dict[str, Any]) -> bool:
     cursor = conn.cursor()
     try:
         cursor.execute("""
-            INSERT OR IGNORE INTO jobs (
+            INSERT INTO jobs (
                 job_id, title, company, location, experience,
                 salary_text, min_ctc_lpa, max_ctc_lpa,
                 job_description, skills_required, apply_url,
                 is_easy_apply
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(job_id) DO UPDATE SET
+                is_easy_apply = excluded.is_easy_apply,
+                salary_text = excluded.salary_text,
+                min_ctc_lpa = excluded.min_ctc_lpa,
+                max_ctc_lpa = excluded.max_ctc_lpa
         """, (
             job_data["job_id"],
             job_data.get("title", "Unknown"),
@@ -97,6 +102,15 @@ def save_job(job_data: Dict[str, Any]) -> bool:
         return False
     finally:
         conn.close()
+
+
+def set_job_easy_apply(job_id: str, is_easy: bool):
+    """Updates the is_easy_apply flag for a job."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE jobs SET is_easy_apply = ? WHERE job_id = ?", (1 if is_easy else 0, job_id))
+    conn.commit()
+    conn.close()
 
 
 def job_exists(job_id: str) -> bool:
@@ -172,32 +186,42 @@ def get_jobs_by_status(status: str) -> List[Dict[str, Any]]:
     return rows
 
 
-def get_pending_tailoring_jobs() -> List[Dict[str, Any]]:
+def get_pending_tailoring_jobs(easy_apply_only: bool = False, limit: Optional[int] = None) -> List[Dict[str, Any]]:
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("""
+    query = """
         SELECT j.*, a.status
         FROM jobs j
         JOIN applications a ON j.job_id = a.job_id
         WHERE a.status = 'DISCOVERED'
-        ORDER BY j.discovered_at DESC
-    """)
+    """
+    if easy_apply_only:
+        query += " AND j.is_easy_apply = 1"
+    query += " ORDER BY j.discovered_at DESC"
+    if limit is not None and limit > 0:
+        query += f" LIMIT {int(limit)}"
+    cursor.execute(query)
     rows = [dict(r) for r in cursor.fetchall()]
     conn.close()
     return rows
 
 
-def get_tailored_jobs_ready_for_review() -> List[Dict[str, Any]]:
+def get_tailored_jobs_ready_for_review(easy_apply_only: bool = False, limit: Optional[int] = None) -> List[Dict[str, Any]]:
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("""
+    query = """
         SELECT j.*, a.status, a.ats_match_score, a.tailored_resume_path,
                a.missing_keywords, a.matched_keywords
         FROM jobs j
         JOIN applications a ON j.job_id = a.job_id
         WHERE a.status = 'TAILORED'
-        ORDER BY a.ats_match_score DESC
-    """)
+    """
+    if easy_apply_only:
+        query += " AND j.is_easy_apply = 1"
+    query += " ORDER BY a.ats_match_score DESC"
+    if limit is not None and limit > 0:
+        query += f" LIMIT {int(limit)}"
+    cursor.execute(query)
     rows = [dict(r) for r in cursor.fetchall()]
     conn.close()
 

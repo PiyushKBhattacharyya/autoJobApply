@@ -8,7 +8,7 @@ from rich.panel import Panel
 from rich.prompt import Prompt
 
 from src.config import BASE_DIR, load_config
-from src.db import update_application
+from src.db import update_application, set_job_easy_apply
 from src.naukri_scraper import NaukriScraper, random_human_delay
 from src.ui import copy_to_clipboard
 
@@ -66,6 +66,7 @@ class NaukriApplier:
                     "button:has-text('Apply on company site'), a:has-text('Apply on company site'), [id*='company-site']"
                 )
                 if company_site_btn:
+                    set_job_easy_apply(job_id, is_easy=False)
                     if easy_apply_only:
                         console.print(f"[yellow]Skipping {job.get('company')}: Requires external company portal (Easy Apply Only mode enabled).[/yellow]")
                         update_application(

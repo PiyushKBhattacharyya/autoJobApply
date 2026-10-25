@@ -208,7 +208,7 @@ def tailor_resume_for_job(
     prompt = build_tailoring_prompt(job, master_profile, target_pages=pages)
 
     models_to_try = [selected_model]
-    for m_cand in ["gemini-3.6-flash", "gemini-3.5-flash"]:
+    for m_cand in ["gemini-2.5-flash", "gemini-3.6-flash", "gemini-3.5-flash"]:
         if m_cand not in models_to_try:
             models_to_try.append(m_cand)
 
@@ -237,20 +237,24 @@ def tailor_resume_for_job(
                     print_api_key_help()
                     raise
                 elif "429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg or "quota" in err_msg.lower():
-                    print(f"[!] Model '{curr_model}' hit quota limit (429).")
+                    print(f"[!] Model '{curr_model}' hit quota limit (429). Falling back...")
                     break  # Break inner retry loop to try next fallback model
                 elif "503" in err_msg or "UNAVAILABLE" in err_msg:
                     if attempt < max_retries - 1:
-                        wait_time = (attempt + 1) * 3
-                        print(f"[!] Gemini busy (503). Retrying in {wait_time}s...")
+                        wait_time = (attempt + 1) * 2
+                        print(f"[!] Model '{curr_model}' busy (503). Retrying in {wait_time}s...")
                         import time
                         time.sleep(wait_time)
                         continue
+                    else:
+                        print(f"[!] Model '{curr_model}' unavailable (503). Falling back to next model...")
+                        break
                 elif "404" in err_msg or "NOT_FOUND" in err_msg:
                     print(f"[!] Model '{curr_model}' not found (404).")
                     break
                 else:
-                    raise
+                    print(f"[!] Error with model '{curr_model}': {e}. Falling back...")
+                    break
 
         if response is not None:
             break

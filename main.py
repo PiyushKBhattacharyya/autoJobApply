@@ -203,6 +203,9 @@ def cmd_run(mode, model, pages, route):
     # Determine application route (both vs easy apply only)
     if route is not None:
         selected_route = "easy_only" if route == "easy-only" else "both"
+    elif run_mode == "auto":
+        # In auto mode, strictly target Easy Apply only (no interactive prompts for external portals)
+        selected_route = "easy_only"
     elif run_mode == "supervised":
         route_choice = Prompt.ask(
             "Which application routes would you like to target?\n"
@@ -210,7 +213,7 @@ def cmd_run(mode, model, pages, route):
             "  [2] Easy Apply Only (⚡ Strict 1-click apply on Naukri only, skip external company sites)\n"
             "Select option [bold cyan](1 or 2)[/bold cyan]",
             choices=["1", "2"],
-            default="1" if config.bot.apply_route == "both" else "2"
+            default="2" if config.bot.apply_route == "easy_only" else "1"
         )
         selected_route = "both" if route_choice == "1" else "easy_only"
     else:
@@ -235,9 +238,18 @@ def cmd_run(mode, model, pages, route):
     scraper.search_jobs()
 
     # 3. Step 2: Tailor resumes for discovered jobs
-    pending_tailor = get_pending_tailoring_jobs()
+    is_easy_only = (selected_route == "easy_only")
+
+    # If Easy Apply Only, auto-skip discovered external jobs so we don't waste API quota tailoring them
+    if is_easy_only:
+        all_discovered = get_pending_tailoring_jobs(easy_apply_only=False)
+        for j in all_discovered:
+            if not j.get("is_easy_apply"):
+                update_application(j["job_id"], status="SKIPPED", notes="Auto-skipped: External company portal (Easy Apply Only mode)")
+
+    pending_tailor = get_pending_tailoring_jobs(easy_apply_only=is_easy_only, limit=config.search.max_results)
     if pending_tailor:
-        console.print(f"\n[bold cyan]Step 2/3: Tailoring resumes for {len(pending_tailor)} discovered openings ({target_pages} page(s))...[/bold cyan]")
+        console.print(f"\n[bold cyan]Step 2/3: Tailoring resumes for {len(pending_tailor)} discovered openings (capped at max_results={config.search.max_results}, {target_pages} page(s))...[/bold cyan]")
         for idx, job in enumerate(pending_tailor, 1):
             console.print(f"[bold]({idx}/{len(pending_tailor)}) Tailoring for {job['company']} - {job['title']}...[/bold]")
             try:
@@ -247,15 +259,22 @@ def cmd_run(mode, model, pages, route):
                 console.print(f"[red]Failed to tailor: {e}[/red]")
                 time.sleep(4.0)
     else:
-        console.print("\n[bold cyan]Step 2/3: All discovered jobs already have tailored resumes.[/bold cyan]")
+        console.print("\n[bold cyan]Step 2/3: All discovered matching jobs already tailored (or none in current filter).[/bold cyan]")
 
     # 4. Step 3: Review & Application
-    ready_jobs = get_tailored_jobs_ready_for_review()
+    ready_jobs = get_tailored_jobs_ready_for_review(easy_apply_only=is_easy_only, limit=config.search.max_results)
     if not ready_jobs:
-        console.print("[yellow]No tailored jobs ready for application. Check your search filters or logs.[/yellow]")
+        if is_easy_only:
+            console.print(
+                "[bold yellow]⚡ No 1-click Easy Apply listings found in the current search results.[/bold yellow]\n"
+                "[dim]Tip: Most enterprise/tech roles on Naukri redirect to company career sites.\n"
+                "To apply to all openings with automatic clipboard paste & assistance, choose Option [1] (Both: Direct + Assisted External).[/dim]"
+            )
+        else:
+            console.print("[yellow]No tailored jobs ready for application. Check your search filters or logs.[/yellow]")
         return
 
-    console.print(f"\n[bold green]Step 3/3: Found {len(ready_jobs)} tailored jobs ready for application review.[/bold green]\n")
+    console.print(f"\n[bold green]Step 3/3: Found {len(ready_jobs)} {'Easy Apply ' if is_easy_only else ''}jobs ready for application review.[/bold green]\n")
 
     # Process application queue
     for idx, job in enumerate(ready_jobs, 1):

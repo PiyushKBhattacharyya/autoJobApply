@@ -1,57 +1,23 @@
-# Naukri Job Hunter & AI Resume Customizer Configuration
-
 search:
-  # Job role keywords (e.g. "Full Stack Developer", "Python Developer", "Data Scientist")
-  role: "Full Stack Developer"
-  
-  # Target city (e.g. "Bengaluru", "Pune", "Hyderabad", "Delhi / NCR", "Mumbai", "Remote")
-  city: "Bengaluru"
-  
-  # Desired CTC range in LPA (Lakhs Per Annum)
-  # Set min_ctc_lpa to 0 to include listings without explicit salary or entry-level
+  role: Full Stack Developer
+  city: Bengaluru
   min_ctc_lpa: 16
   max_ctc_lpa: 25
-  
-  # Candidate experience in years
   experience_years: 1
-  
-  # Maximum listings to scrape per search run
-  max_results: 25
-
+  max_results: 5
 resume:
-  # Path to your master resume PDF (input)
-  master_pdf_path: "data/master_resume.pdf"
-  
-  # Path where structured profile JSON is stored
-  master_profile_path: "data/master_profile.json"
-  
-  # Directory where tailored PDFs will be generated
-  output_dir: "output/resumes"
-
-  # Target resume length: 1 (single-page concise ATS) or 2 (detailed multi-page format)
+  master_pdf_path: data/master_resume.pdf
+  master_profile_path: data/master_profile.json
+  output_dir: output/resumes
   target_pages: 1
-
-
 bot:
-  # Application mode: "supervised" (interactive approval) or "auto" (hands-free applying)
-  mode: "supervised"
-  
-  # Minimum ATS match score (0-100) to proceed with tailoring & applying
+  mode: supervised
   min_match_score: 65
-  
-  # Run browser in headless mode (False recommended for Naukri to avoid bot triggers)
   headless: false
-  
-  # Min and max delay range in seconds between browser actions to mimic human interaction
-  human_delay_range: [2.5, 6.0]
-  
-  # Allow applying to internal Naukri "Apply" / "Easy Apply" postings
+  human_delay_range:
+  - 2.5
+  - 6.0
   auto_easy_apply: true
-  
-  # Application route: "both" (direct apply + assisted external portal) or "easy_only" (strict 1-click apply only)
-  apply_route: "both"
-
+  apply_route: easy_only
 gemini:
-  # Model to use for tailoring and parsing (Use 'python main.py models' to list/change)
-  model_name: "gemini-3.6-flash"
-
+  model_name: gemini-2.5-flash

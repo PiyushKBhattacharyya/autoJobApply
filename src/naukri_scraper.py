@@ -38,6 +38,32 @@ def parse_salary_to_lpa(salary_text: str) -> Tuple[Optional[float], Optional[flo
         except ValueError:
             pass
 
+def parse_experience_range(exp_text: str) -> Tuple[Optional[int], Optional[int]]:
+    """
+    Parses experience strings like '0-1 Yrs', '1-3 Yrs', '2 Yrs', '0-2 Yrs'
+    into (min_exp_years, max_exp_years).
+    Returns (None, None) if unparseable.
+    """
+    if not exp_text:
+        return None, None
+
+    # Range like "0-1 Yrs", "1-3 Yrs"
+    range_match = re.search(r"(\d+)\s*-\s*(\d+)", exp_text)
+    if range_match:
+        try:
+            return int(range_match.group(1)), int(range_match.group(2))
+        except ValueError:
+            pass
+
+    # Single number like "1 Yr", "2 Yrs"
+    single_match = re.search(r"(\d+)", exp_text)
+    if single_match:
+        try:
+            val = int(single_match.group(1))
+            return val, val
+        except ValueError:
+            pass
+
     return None, None
 
 
@@ -192,6 +218,13 @@ class NaukriScraper:
                         if not parsed:
                             continue
 
+                        # Experience Filter validation:
+                        # Candidate has at most `exp` years of experience.
+                        # If a job requires more than `exp` minimum experience (e.g. requires 2+ or 3-5 years), skip it.
+                        job_min_exp = parsed.get("min_exp")
+                        if job_min_exp is not None and job_min_exp > exp:
+                            continue
+
                         # CTC Filter validation
                         job_min_ctc = parsed.get("min_ctc_lpa")
                         job_max_ctc = parsed.get("max_ctc_lpa")
@@ -249,6 +282,7 @@ class NaukriScraper:
             # Experience
             exp_el = card.select_one(".expwdth, .exp-wrap, li.experience, span.ni-job-tuple-icon-experience + span")
             experience = exp_el.get_text(strip=True) if exp_el else ""
+            min_exp, max_exp = parse_experience_range(experience)
 
             # Salary
             sal_el = card.select_one(".sal-wrap, li.salary, span.ni-job-tuple-icon-salary + span")
@@ -269,8 +303,17 @@ class NaukriScraper:
             job_desc = desc_el.get_text(strip=True) if desc_el else f"{title} at {company}. Skills: {skills_text}"
 
             # Easy Apply flag
-            easy_apply_el = card.select_one(".easy-apply, [data-easy-apply='true'], .apply-button")
-            is_easy_apply = easy_apply_el is not None or "apply" in card.text.lower()
+            # External listings often say "Apply on company site" or "Company site" or have specific tags
+            card_text_lower = card.get_text(" ", strip=True).lower()
+            is_external = "company site" in card_text_lower or "apply on company" in card_text_lower
+            
+            # Direct apply indicator
+            easy_badge = card.select_one(".easy-apply, [data-easy-apply='true'], .ni-job-tuple-icon-easy-apply, .easyApply")
+            is_direct_badge = easy_badge is not None or "easy apply" in card_text_lower
+            
+            # If explicit external tag, is_easy_apply is False. If explicit direct badge, True.
+            # Default to False if undetermined to prevent false positives in Easy Apply Only mode.
+            is_easy_apply = (not is_external) and is_direct_badge
 
             return {
                 "job_id": str(job_id),
@@ -278,6 +321,8 @@ class NaukriScraper:
                 "company": company,
                 "location": location,
                 "experience": experience,
+                "min_exp": min_exp,
+                "max_exp": max_exp,
                 "salary_text": salary_text,
                 "min_ctc_lpa": min_ctc,
                 "max_ctc_lpa": max_ctc,
