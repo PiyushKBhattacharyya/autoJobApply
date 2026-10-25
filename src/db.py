@@ -200,7 +200,16 @@ def get_tailored_jobs_ready_for_review() -> List[Dict[str, Any]]:
     """)
     rows = [dict(r) for r in cursor.fetchall()]
     conn.close()
-    return rows
+
+    verified = []
+    for r in rows:
+        p = r.get("tailored_resume_path")
+        if p and Path(p).exists():
+            verified.append(r)
+        else:
+            update_application(r["job_id"], status="DISCOVERED", resume_path=None)
+    return verified
+
 
 
 def get_summary_stats() -> Dict[str, int]:

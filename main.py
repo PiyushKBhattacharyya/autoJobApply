@@ -206,36 +206,33 @@ def cmd_run(mode, model, pages):
             console.print("[bold red]Please place your PDF at 'data/master_resume.pdf' or run `python main.py parse-resume --pdf <path>` first.[/bold red]")
             return
 
-    # 2. Check pending jobs or run search
-    ready_jobs = get_tailored_jobs_ready_for_review()
-    if not ready_jobs:
-        pending_tailor = get_pending_tailoring_jobs()
-        if not pending_tailor:
-            console.print("[cyan]No jobs in queue. Running search first...[/cyan]")
-            scraper = NaukriScraper()
-            scraper.search_jobs()
-            pending_tailor = get_pending_tailoring_jobs()
+    # 2. Step 1: Scan openings according to criteria
+    console.print(f"\n[bold cyan]Step 1/3: Scanning Naukri for '{config.search.role}' in '{config.search.city}' (CTC: {config.search.min_ctc_lpa}-{config.search.max_ctc_lpa} LPA)...[/bold cyan]")
+    scraper = NaukriScraper()
+    scraper.search_jobs()
 
-        # Tailor pending jobs
-        console.print(f"[cyan]Tailoring {len(pending_tailor)} discovered jobs with model ({active_model}) - {target_pages} page(s)...[/cyan]")
-        for job in pending_tailor:
+    # 3. Step 2: Tailor resumes for discovered jobs
+    pending_tailor = get_pending_tailoring_jobs()
+    if pending_tailor:
+        console.print(f"\n[bold cyan]Step 2/3: Tailoring resumes for {len(pending_tailor)} discovered openings ({target_pages} page(s))...[/bold cyan]")
+        for idx, job in enumerate(pending_tailor, 1):
+            console.print(f"[bold]({idx}/{len(pending_tailor)}) Tailoring for {job['company']} - {job['title']}...[/bold]")
             try:
                 tailor_resume_for_job(job, model_name=active_model, target_pages=target_pages)
             except Exception as e:
                 console.print(f"[red]Failed to tailor: {e}[/red]")
+    else:
+        console.print("\n[bold cyan]Step 2/3: All discovered jobs already have tailored resumes.[/bold cyan]")
 
-        ready_jobs = get_tailored_jobs_ready_for_review()
-
-
-
-
+    # 4. Step 3: Review & Application
+    ready_jobs = get_tailored_jobs_ready_for_review()
     if not ready_jobs:
-        console.print("[yellow]No tailored jobs ready for application.[/yellow]")
+        console.print("[yellow]No tailored jobs ready for application. Check your search filters or logs.[/yellow]")
         return
 
-    console.print(f"\n[bold green]Found {len(ready_jobs)} tailored jobs ready for application review.[/bold green]\n")
+    console.print(f"\n[bold green]Step 3/3: Found {len(ready_jobs)} tailored jobs ready for application review.[/bold green]\n")
 
-    # 3. Process application queue
+    # Process application queue
     for idx, job in enumerate(ready_jobs, 1):
         ats_score = job.get("ats_match_score", 0)
         display_job_card(
@@ -270,10 +267,15 @@ def cmd_run(mode, model, pages):
                 action_loop = False
             elif choice == "p":
                 pdf_path = job.get("tailored_resume_path")
-                if pdf_path:
+                if pdf_path and Path(pdf_path).exists():
                     open_file_in_viewer(pdf_path)
                 else:
-                    console.print("[red]No PDF path recorded.[/red]")
+                    console.print("[yellow]PDF not found on disk. Regenerating tailored PDF now...[/yellow]")
+                    try:
+                        _, new_pdf = tailor_resume_for_job(job, model_name=active_model, target_pages=target_pages)
+                        open_file_in_viewer(str(new_pdf))
+                    except Exception as e:
+                        console.print(f"[red]Could not regenerate PDF: {e}[/red]")
             elif choice == "o":
                 url = job.get("apply_url")
                 if url:
@@ -285,6 +287,7 @@ def cmd_run(mode, model, pages):
             elif choice == "q":
                 console.print("[yellow]Exiting workflow. Progress saved in database.[/yellow]")
                 return
+
 
     console.print("\n[bold green]✓ Application queue review complete![/bold green]")
     display_stats(get_summary_stats())
