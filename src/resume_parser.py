@@ -101,13 +101,15 @@ def extract_text_from_pdf(pdf_path: Path) -> str:
 def parse_master_resume(
     pdf_path: Optional[Path] = None,
     output_json_path: Optional[Path] = None,
-    api_key: Optional[str] = None
+    api_key: Optional[str] = None,
+    model_name: Optional[str] = None
 ) -> Dict[str, Any]:
     """Parse a master resume PDF into structured JSON using Gemini API."""
     config = load_config()
     target_pdf = pdf_path or config.resume.master_pdf_abs
     target_output = output_json_path or config.resume.master_profile_abs
     gemini_key = api_key or config.gemini.api_key
+    selected_model = model_name or config.gemini.model_name
 
     if not target_pdf.exists():
         raise FileNotFoundError(
@@ -125,18 +127,29 @@ def parse_master_resume(
     if not raw_text:
         raise ValueError(f"Could not extract any readable text from {target_pdf}. Ensure it is not a scanned image PDF.")
 
-    print(f"Extracted {len(raw_text)} characters. Structuring resume with Gemini...")
+    print(f"Extracted {len(raw_text)} characters. Structuring resume with Gemini [{selected_model}]...")
     client = genai.Client(api_key=gemini_key)
 
     prompt = f"{RESUME_SCHEMA_PROMPT}\n\nRAW RESUME TEXT:\n{raw_text}"
-    response = client.models.generate_content(
-        model=config.gemini.model_name,
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            response_mime_type="application/json",
-            temperature=0.2
+    try:
+        response = client.models.generate_content(
+            model=selected_model,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                temperature=0.2
+            )
         )
-    )
+    except Exception as e:
+        err_msg = str(e)
+        if "404" in err_msg or "NOT_FOUND" in err_msg or "not found" in err_msg.lower():
+            from src.models_manager import list_available_models, display_models_table
+            print(f"\n[!] Model '{selected_model}' is not available or has been retired by Google.")
+            models = list_available_models(api_key=gemini_key)
+            display_models_table(models, current_model=selected_model)
+            print(f"Tip: Run `python main.py set-model <model-name>` or pass `--model <model-name>`.\n")
+        raise
+
 
     clean_text = response.text.strip()
     if clean_text.startswith("```json"):

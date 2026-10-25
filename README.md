@@ -113,6 +113,20 @@ A browser window will open to Naukri. Log in to your account. Once logged in and
 
 ### 2. Individual Commands
 
+- **List & Change Gemini Models** (dynamically fetches active models from Google API):
+  ```bash
+  # View all available active models and interactively switch
+  .venv\Scripts\python main.py models
+
+  # Directly switch to a specific model
+  .venv\Scripts\python main.py set-model gemini-3.8-flash
+  ```
+
+- **Parse Resume** (with optional model override):
+  ```bash
+  .venv\Scripts\python main.py parse-resume --model gemini-3.8-flash
+  ```
+
 - **Search Jobs**:
   ```bash
   .venv\Scripts\python main.py search --role "Python Developer" --city "Bengaluru" --min-ctc 15 --max-ctc 25
@@ -120,13 +134,14 @@ A browser window will open to Naukri. Log in to your account. Once logged in and
 
 - **Tailor Pending Resumes**:
   ```bash
-  .venv\Scripts\python main.py tailor
+  .venv\Scripts\python main.py tailor --model gemini-3.8-flash
   ```
 
 - **View Status Dashboard**:
   ```bash
   .venv\Scripts\python main.py status
   ```
+
 
 ---
 

@@ -45,5 +45,6 @@ bot:
   auto_easy_apply: true
 
 gemini:
-  # Model to use for tailoring and parsing
-  model_name: "gemini-2.5-flash"
+  # Model to use for tailoring and parsing (Use 'python main.py models' to list/change)
+  model_name: "gemini-3.8-flash"
+

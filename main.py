@@ -50,6 +50,47 @@ def cmd_init():
     console.print(f"[cyan]Configuration loaded: Role='{config.search.role}', City='{config.search.city}', CTC={config.search.min_ctc_lpa}-{config.search.max_ctc_lpa} LPA[/cyan]")
 
 
+@cli.command("models")
+def cmd_models():
+    """List available Gemini models dynamically from Google API and select active model."""
+    print_banner()
+    from src.models_manager import (
+        display_models_table,
+        list_available_models,
+        set_active_model_in_config,
+    )
+
+    config = load_config()
+    console.print("[cyan]Fetching active models from Google Gemini API...[/cyan]")
+    try:
+        models = list_available_models()
+        display_models_table(models, current_model=config.gemini.model_name)
+
+        if Confirm.ask("\nWould you like to change the active model?", default=False):
+            choice = Prompt.ask(
+                "Enter model name or number from the list above",
+                default=config.gemini.model_name
+            ).strip()
+
+            if choice.isdigit() and 1 <= int(choice) <= len(models):
+                selected = models[int(choice) - 1]
+            else:
+                selected = choice
+
+            set_active_model_in_config(selected)
+    except Exception as e:
+        console.print(f"[red]Failed to list models: {e}[/red]")
+
+
+@cli.command("set-model")
+@click.argument("model_name")
+def cmd_set_model(model_name):
+    """Set the active Gemini model name in config.yaml."""
+    print_banner()
+    from src.models_manager import set_active_model_in_config
+    set_active_model_in_config(model_name)
+
+
 @cli.command("login")
 def cmd_login():
     """Open Naukri in a browser to log in and save session cookies."""
@@ -60,7 +101,8 @@ def cmd_login():
 
 @cli.command("parse-resume")
 @click.option("--pdf", type=click.Path(exists=True), help="Path to your master resume PDF")
-def cmd_parse_resume(pdf):
+@click.option("--model", help="Gemini model to use (e.g. gemini-3.8-flash)")
+def cmd_parse_resume(pdf, model):
     """Extract and structure your master resume PDF into JSON and Markdown."""
     print_banner()
     config = load_config()
@@ -72,7 +114,7 @@ def cmd_parse_resume(pdf):
         return
 
     try:
-        parse_master_resume(pdf_path=pdf_path)
+        parse_master_resume(pdf_path=pdf_path, model_name=model)
         console.print("[bold green]✓ Master profile parsed successfully![/bold green]")
         console.print(f"You can review or edit [cyan]{config.resume.master_profile_path}[/cyan] anytime.")
     except Exception as e:
@@ -100,7 +142,8 @@ def cmd_search(role, city, min_ctc, max_ctc, limit):
 
 
 @cli.command("tailor")
-def cmd_tailor():
+@click.option("--model", help="Gemini model to use (e.g. gemini-3.8-flash)")
+def cmd_tailor(model):
     """Tailor resume and generate ATS-compliant PDFs for all pending discovered jobs."""
     print_banner()
     pending = get_pending_tailoring_jobs()
@@ -108,11 +151,13 @@ def cmd_tailor():
         console.print("[yellow]No pending jobs waiting for tailoring. Run `python main.py search` first.[/yellow]")
         return
 
-    console.print(f"[cyan]Found {len(pending)} jobs to tailor with Gemini...[/cyan]\n")
+    config = load_config()
+    active_model = model or config.gemini.model_name
+    console.print(f"[cyan]Found {len(pending)} jobs to tailor with Gemini [{active_model}]...[/cyan]\n")
     for idx, job in enumerate(pending, 1):
         console.print(f"[bold]({idx}/{len(pending)}) Tailoring for {job['company']} - {job['title']}...[/bold]")
         try:
-            tailor_resume_for_job(job)
+            tailor_resume_for_job(job, model_name=active_model)
         except Exception as e:
             console.print(f"[red]Error tailoring for job {job['job_id']}: {e}[/red]")
 
@@ -123,21 +168,23 @@ def cmd_tailor():
     type=click.Choice(["supervised", "auto"], case_sensitive=False),
     help="Execution mode: supervised (interactive approval) or auto"
 )
-def cmd_run(mode):
+@click.option("--model", help="Gemini model to use (e.g. gemini-3.8-flash)")
+def cmd_run(mode, model):
     """Run full workflow: Search -> Tailor -> Apply (Supervised or Auto)."""
     print_banner()
     config = load_config()
     run_mode = (mode or config.bot.mode).lower()
+    active_model = model or config.gemini.model_name
     applier = NaukriApplier()
 
-    console.print(f"[bold magenta]▶ Running in {run_mode.upper()} mode[/bold magenta]\n")
+    console.print(f"[bold magenta]▶ Running in {run_mode.upper()} mode with model [{active_model}][/bold magenta]\n")
 
     # 1. Check master profile exists
     if not config.resume.master_profile_abs.exists():
         console.print(f"[yellow]Master profile not found at {config.resume.master_profile_abs}.[/yellow]")
         if config.resume.master_pdf_abs.exists():
-            console.print("[cyan]Parsing master resume PDF first...[/cyan]")
-            parse_master_resume()
+            console.print(f"[cyan]Parsing master resume PDF first with model [{active_model}]...[/cyan]")
+            parse_master_resume(model_name=active_model)
         else:
             console.print("[bold red]Please place your PDF at 'data/master_resume.pdf' or run `python main.py parse-resume --pdf <path>` first.[/bold red]")
             return
@@ -153,14 +200,15 @@ def cmd_run(mode):
             pending_tailor = get_pending_tailoring_jobs()
 
         # Tailor pending jobs
-        console.print(f"[cyan]Tailoring {len(pending_tailor)} discovered jobs...[/cyan]")
+        console.print(f"[cyan]Tailoring {len(pending_tailor)} discovered jobs with model [{active_model}]...[/cyan]")
         for job in pending_tailor:
             try:
-                tailor_resume_for_job(job)
+                tailor_resume_for_job(job, model_name=active_model)
             except Exception as e:
                 console.print(f"[red]Failed to tailor: {e}[/red]")
 
         ready_jobs = get_tailored_jobs_ready_for_review()
+
 
     if not ready_jobs:
         console.print("[yellow]No tailored jobs ready for application.[/yellow]")

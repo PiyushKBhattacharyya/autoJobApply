@@ -56,8 +56,9 @@ class BotConfig(BaseModel):
 
 
 class GeminiConfig(BaseModel):
-    model_name: str = "gemini-2.5-flash"
+    model_name: str = "gemini-3.8-flash"
     api_key: Optional[str] = Field(default_factory=lambda: os.getenv("GEMINI_API_KEY", ""))
+
 
 
 class AppConfig(BaseModel):

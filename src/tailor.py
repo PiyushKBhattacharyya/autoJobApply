@@ -78,7 +78,8 @@ def clean_company_name(name: str) -> str:
 def tailor_resume_for_job(
     job: Dict[str, Any],
     master_profile: Optional[Dict[str, Any]] = None,
-    api_key: Optional[str] = None
+    api_key: Optional[str] = None,
+    model_name: Optional[str] = None
 ) -> Tuple[Dict[str, Any], Path]:
     """
     Tailor master resume for a specific job using Gemini,
@@ -86,6 +87,7 @@ def tailor_resume_for_job(
     """
     config = load_config()
     gemini_key = api_key or config.gemini.api_key
+    selected_model = model_name or config.gemini.model_name
 
     if not gemini_key:
         raise ValueError("GEMINI_API_KEY is not configured in .env")
@@ -101,7 +103,7 @@ def tailor_resume_for_job(
         with open(profile_path, "r", encoding="utf-8") as f:
             master_profile = json.load(f)
 
-    print(f"Tailoring resume for [{job.get('title')}] at [{job.get('company')}]...")
+    print(f"Tailoring resume for [{job.get('title')}] at [{job.get('company')}] using [{selected_model}]...")
     client = genai.Client(api_key=gemini_key)
 
     prompt = TAILORING_PROMPT.format(
@@ -114,14 +116,25 @@ def tailor_resume_for_job(
         master_profile_json=json.dumps(master_profile, ensure_ascii=False)
     )
 
-    response = client.models.generate_content(
-        model=config.gemini.model_name,
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            response_mime_type="application/json",
-            temperature=0.3
+    try:
+        response = client.models.generate_content(
+            model=selected_model,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                temperature=0.3
+            )
         )
-    )
+    except Exception as e:
+        err_msg = str(e)
+        if "404" in err_msg or "NOT_FOUND" in err_msg or "not found" in err_msg.lower():
+            from src.models_manager import list_available_models, display_models_table
+            print(f"\n[!] Model '{selected_model}' is not available or has been retired by Google.")
+            models = list_available_models(api_key=gemini_key)
+            display_models_table(models, current_model=selected_model)
+            print(f"Tip: Run `python main.py set-model <model-name>` or pass `--model <model-name>`.\n")
+        raise
+
 
     clean_text = response.text.strip()
     if clean_text.startswith("```json"):
