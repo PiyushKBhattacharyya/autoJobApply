@@ -138,21 +138,90 @@ class NaukriApplier:
                         context.close()
                         return "EXTERNAL_REDIRECT"
 
-                # Look for Naukri Direct Apply button
-                apply_button = page.query_selector(
-                    "#apply-button, button.apply-button, button:has-text('Apply'), [id*='apply']"
-                )
+                # Check for Access Denied / Cloudflare / Login required
+                page_title = page.title()
+                if "Access Denied" in page_title or "Security Check" in page_title:
+                    console.print("[bold red]⚠ Naukri security check / Access Denied detected on page.[/bold red]")
+
+                # Inject on-screen guiding notification banner into the browser window
+                try:
+                    resume_display_name = Path(resume_path).name if resume_path else "Tailored Resume"
+                    page.evaluate(f"""() => {{
+                        const banner = document.createElement('div');
+                        banner.id = 'autojobapply-banner';
+                        banner.style.position = 'fixed';
+                        banner.style.top = '10px';
+                        banner.style.left = '50%';
+                        banner.style.transform = 'translateX(-50%)';
+                        banner.style.zIndex = '999999';
+                        banner.style.backgroundColor = '#1e1e2e';
+                        banner.style.color = '#a6e3a1';
+                        banner.style.border = '2px solid #89b4fa';
+                        banner.style.borderRadius = '8px';
+                        banner.style.padding = '12px 24px';
+                        banner.style.boxShadow = '0 8px 24px rgba(0,0,0,0.5)';
+                        banner.style.fontFamily = 'system-ui, sans-serif';
+                        banner.style.fontSize = '14px';
+                        banner.style.fontWeight = 'bold';
+                        banner.innerHTML = `⚡ <b>AutoJobApply Active:</b> Applying to <i>{job.get('company')}</i><br><span style="color:#cdd6f4; font-size:12px; font-weight:normal;">Tailored Resume: {resume_display_name}</span>`;
+                        document.body.appendChild(banner);
+                    }}""")
+                except Exception:
+                    pass
+
+                # Comprehensive apply button selectors across old & new Naukri layouts
+                apply_selectors = [
+                    "#apply-button",
+                    ".apply-button",
+                    "button:has-text('Apply')",
+                    "button:has-text('Apply on Naukri')",
+                    "a:has-text('Apply')",
+                    "a:has-text('Apply on Naukri')",
+                    "[class*='apply-button']",
+                    "[class*='styles_apply_button']",
+                    "[data-action='apply']"
+                ]
+
+                apply_button = None
+                for sel in apply_selectors:
+                    btn = page.query_selector(sel)
+                    if btn and btn.is_visible():
+                        apply_button = btn
+                        break
 
                 if not apply_button:
                     # Check if already applied
                     already_applied = page.query_selector(
-                        ":has-text('Already Applied'), button:has-text('Applied')"
+                        ":has-text('Already Applied'), button:has-text('Applied'), [class*='already-applied']"
                     )
                     if already_applied:
                         console.print(f"[yellow]Already applied to {job.get('company')} previously.[/yellow]")
                         update_application(job_id, status="APPLIED", notes="Already applied on Naukri")
                         context.close()
                         return "APPLIED"
+
+                    # Capture debug screenshot so user can see exactly what the browser sees
+                    screenshots_dir = BASE_DIR / "output" / "screenshots"
+                    screenshots_dir.mkdir(parents=True, exist_ok=True)
+                    shot_path = screenshots_dir / f"apply_debug_{job_id}.png"
+                    try:
+                        page.screenshot(path=str(shot_path), full_page=False)
+                        console.print(f"[yellow]📸 Screen capture saved: [cyan]{shot_path}[/cyan][/yellow]")
+                    except Exception:
+                        pass
+
+                    if interactive:
+                        console.print(f"[bold yellow]👉 Browser window is open. Please click the Apply button or resolve captcha on screen.[/bold yellow]")
+                        user_confirm = Prompt.ask(
+                            f"Did you complete the application for {job.get('company')} in the browser window? [bold green](Y/n)[/bold green]",
+                            choices=["y", "n"],
+                            default="y"
+                        ).lower()
+                        if user_confirm == "y":
+                            console.print(f"[bold green]✓ Recorded as APPLIED for {job.get('company')}![/bold green]")
+                            update_application(job_id, status="APPLIED", notes="Applied manually via browser assistance")
+                            context.close()
+                            return "APPLIED"
 
                     console.print(f"[red]No apply button found or unexpected page structure.[/red]")
                     update_application(job_id, status="FAILED", notes="Apply button selector not matched")
