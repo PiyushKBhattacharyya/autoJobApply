@@ -95,8 +95,9 @@ def save_job(job_data: Dict[str, Any]) -> bool:
             VALUES (?, 'DISCOVERED')
         """, (job_data["job_id"],))
 
+        is_new_discovery = (cursor.rowcount > 0)
         conn.commit()
-        return True
+        return is_new_discovery
     except Exception as e:
         print(f"Error saving job {job_data.get('job_id')}: {e}")
         return False
@@ -120,6 +121,15 @@ def job_exists(job_id: str) -> bool:
     row = cursor.fetchone()
     conn.close()
     return row is not None
+
+
+def get_job_application_status(job_id: str) -> Optional[str]:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT status FROM applications WHERE job_id = ?", (job_id,))
+    row = cursor.fetchone()
+    conn.close()
+    return row["status"] if row else None
 
 
 def update_application(
