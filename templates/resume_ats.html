@@ -9,270 +9,282 @@
       margin: 0;
       padding: 0;
     }
-    {% if target_pages == 1 %}
+    {% if target_pages == 2 %}
     @page {
       size: letter;
-      margin: 0.3in 0.42in 0.3in 0.42in;
+      margin: 0.48in 0.52in 0.45in 0.52in;
     }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      font-size: 8.8pt;
-      line-height: 1.28;
+      font-size: 9.5pt;
+      line-height: 1.36;
       color: #111827;
       background: #ffffff;
     }
     header {
       text-align: center;
-      margin-bottom: 6px;
-      border-bottom: 1.5px solid #1f2937;
-      padding-bottom: 4px;
+      margin-bottom: 10px;
+      padding-bottom: 6px;
+      border-bottom: 1.5px solid #111827;
     }
     h1 {
-      font-size: 15pt;
+      font-size: 16pt;
       font-weight: 700;
-      letter-spacing: -0.5px;
       color: #111827;
-      margin-bottom: 2px;
-      text-transform: uppercase;
+      margin-bottom: 3px;
+      letter-spacing: -0.2px;
     }
-    .contact-info {
-      font-size: 8.5pt;
-      color: #4b5563;
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      gap: 6px;
-    }
-    section {
-      margin-bottom: 6px;
-    }
-    h2 {
-      font-size: 9.8pt;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      color: #111827;
-      border-bottom: 1px solid #d1d5db;
-      padding-bottom: 1px;
+    .contact-line {
+      font-size: 9pt;
+      color: #374151;
       margin-bottom: 3px;
     }
-    .summary-text {
-      font-size: 8.6pt;
-      line-height: 1.28;
-      color: #374151;
-      text-align: justify;
-    }
-    .skills-grid {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-    }
-    .skill-category {
-      font-size: 8.6pt;
-      line-height: 1.24;
-    }
-    .job-entry {
-      margin-bottom: 5px;
-    }
-    .job-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: baseline;
-      font-size: 9pt;
-    }
-    ul.bullet-list {
-      margin-top: 1.5px;
-      margin-left: 14px;
-      padding-left: 0;
-    }
-    ul.bullet-list li {
-      font-size: 8.6pt;
-      margin-bottom: 1.5px;
-      color: #374151;
-      line-height: 1.26;
-    }
-    .project-entry {
-      margin-bottom: 4px;
-    }
-    .project-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: baseline;
-      font-size: 8.8pt;
-    }
-    .education-item {
-      display: flex;
-      justify-content: space-between;
-      font-size: 8.6pt;
-      margin-bottom: 2px;
-    }
-    {% else %}
-    @page {
-      size: letter;
-      margin: 0.5in 0.6in 0.5in 0.6in;
-    }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      font-size: 9.8pt;
-      line-height: 1.38;
-      color: #111827;
-      background: #ffffff;
-    }
-    header {
-      text-align: center;
-      margin-bottom: 12px;
-      border-bottom: 1.5px solid #1f2937;
-      padding-bottom: 8px;
-    }
-    h1 {
-      font-size: 18pt;
-      font-weight: 700;
-      letter-spacing: -0.5px;
-      color: #111827;
-      margin-bottom: 4px;
-      text-transform: uppercase;
-    }
-    .contact-info {
+    .links-line {
       font-size: 9pt;
       color: #4b5563;
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      gap: 8px;
     }
     section {
-      margin-bottom: 12px;
+      margin-bottom: 11px;
     }
     h2 {
-      font-size: 11pt;
+      font-size: 10.5pt;
       font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
       color: #111827;
-      border-bottom: 1px solid #d1d5db;
+      border-bottom: 1.2px solid #111827;
       padding-bottom: 2px;
-      margin-bottom: 6px;
+      margin-bottom: 5px;
+      text-transform: none;
+      letter-spacing: 0.2px;
     }
     .summary-text {
-      font-size: 9.5pt;
-      color: #374151;
+      font-size: 9.2pt;
+      line-height: 1.36;
+      color: #27272a;
       text-align: justify;
     }
-    .skills-grid {
+    .skills-block {
       display: flex;
       flex-direction: column;
       gap: 3px;
     }
-    .skill-category {
-      font-size: 9.5pt;
-      line-height: 1.35;
+    .skill-row {
+      font-size: 9.2pt;
+      line-height: 1.34;
     }
-    .job-entry {
-      margin-bottom: 10px;
+    .exp-item {
+      margin-bottom: 8px;
     }
-    .job-header {
+    .item-header {
       display: flex;
       justify-content: space-between;
       align-items: baseline;
-      font-size: 10pt;
+      font-size: 9.4pt;
+      margin-bottom: 1px;
     }
     ul.bullet-list {
-      margin-top: 3px;
-      margin-left: 16px;
+      margin-top: 2px;
+      margin-left: 17px;
       padding-left: 0;
     }
     ul.bullet-list li {
-      font-size: 9.5pt;
-      margin-bottom: 2.5px;
+      font-size: 9.1pt;
+      margin-bottom: 3px;
+      color: #27272a;
+      line-height: 1.34;
+    }
+    .proj-item {
+      margin-bottom: 7px;
+    }
+    .pub-item {
+      font-size: 9.1pt;
+      line-height: 1.34;
+      margin-bottom: 3.5px;
+      color: #27272a;
+    }
+    {% else %}
+    @page {
+      size: letter;
+      margin: 0.29in 0.42in 0.25in 0.42in;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-size: 9.15pt;
+      line-height: 1.28;
+      color: #111827;
+      background: #ffffff;
+    }
+    header {
+      text-align: center;
+      margin-bottom: 6px;
+      padding-bottom: 4px;
+      border-bottom: 1.2px solid #111827;
+    }
+    h1 {
+      font-size: 15pt;
+      font-weight: 700;
+      color: #111827;
+      margin-bottom: 1.5px;
+      letter-spacing: -0.2px;
+    }
+    .contact-line {
+      font-size: 8.6pt;
       color: #374151;
-      line-height: 1.35;
+      margin-bottom: 1.5px;
     }
-    .project-entry {
-      margin-bottom: 8px;
+    .links-line {
+      font-size: 8.6pt;
+      color: #4b5563;
     }
-    .project-header {
+    section {
+      margin-bottom: 6.5px;
+    }
+    h2 {
+      font-size: 10pt;
+      font-weight: 700;
+      color: #111827;
+      border-bottom: 1px solid #111827;
+      padding-bottom: 1px;
+      margin-bottom: 3.5px;
+      text-transform: none;
+      letter-spacing: 0.2px;
+    }
+    .summary-text {
+      font-size: 8.85pt;
+      line-height: 1.29;
+      color: #27272a;
+      text-align: justify;
+    }
+    .skills-block {
+      display: flex;
+      flex-direction: column;
+      gap: 1.8px;
+    }
+    .skill-row {
+      font-size: 8.85pt;
+      line-height: 1.27;
+    }
+    .exp-item {
+      margin-bottom: 4.8px;
+    }
+    .item-header {
       display: flex;
       justify-content: space-between;
       align-items: baseline;
-      font-size: 9.5pt;
+      font-size: 9pt;
+      margin-bottom: 0.5px;
     }
-    .education-item {
-      display: flex;
-      justify-content: space-between;
-      font-size: 9.5pt;
-      margin-bottom: 3px;
+    ul.bullet-list {
+      margin-top: 1px;
+      margin-left: 15px;
+      padding-left: 0;
+    }
+    ul.bullet-list li {
+      font-size: 8.75pt;
+      margin-bottom: 1.3px;
+      color: #27272a;
+      line-height: 1.27;
+    }
+    .proj-item {
+      margin-bottom: 4.5px;
+    }
+    .pub-item {
+      font-size: 8.75pt;
+      line-height: 1.26;
+      margin-bottom: 2.2px;
+      color: #27272a;
     }
     {% endif %}
 
-    .contact-info a {
+    .links-line a, .contact-line a {
       color: #1d4ed8;
       text-decoration: none;
     }
-    .skill-title {
-      font-weight: 600;
-      color: #1f2937;
-    }
-    .job-title {
+    .skill-cat {
       font-weight: 700;
       color: #111827;
     }
-    .company-name {
-      font-weight: 600;
+    .edu-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      font-size: 8.85pt;
+    }
+    .edu-left {
+      font-weight: 700;
+      color: #111827;
+    }
+    .edu-right {
+      font-style: normal;
       color: #374151;
     }
-    .job-date-loc {
-      font-size: 8.8pt;
-      font-style: italic;
+    .item-title {
+      font-weight: 700;
+      color: #111827;
+    }
+    .item-company {
+      font-weight: 600;
+      color: #27272a;
+    }
+    .item-badge a {
+      color: #1d4ed8;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 8.2pt;
+      margin-left: 3px;
+    }
+    .item-meta {
+      font-size: 8.5pt;
       color: #4b5563;
       text-align: right;
     }
-    .project-title {
-      font-weight: 700;
-      color: #111827;
-    }
-    .project-tech {
-      font-size: 8.5pt;
-      color: #4b5563;
-      font-style: italic;
+    .pub-item a {
+      color: #1d4ed8;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 8.2pt;
+      margin-left: 3px;
     }
   </style>
 </head>
+
 <body>
 
   <header>
     <h1>{{ name }}</h1>
-    <div class="contact-info">
-      {% if contact.email %}<span>{{ contact.email }}</span> &bull;{% endif %}
-      {% if contact.phone %}<span>{{ contact.phone }}</span> &bull;{% endif %}
-      {% if contact.location %}<span>{{ contact.location }}</span>{% endif %}
-      {% if contact.linkedin %} &bull; <span><a href="{{ contact.linkedin }}">LinkedIn</a></span>{% endif %}
-      {% if contact.github %} &bull; <span><a href="{{ contact.github }}">GitHub</a></span>{% endif %}
-      {% if contact.portfolio %} &bull; <span><a href="{{ contact.portfolio }}">Portfolio</a></span>{% endif %}
+    <div class="contact-line">
+      {% if contact.email %}<a href="mailto:{{ contact.email }}">{{ contact.email }}</a>{% endif %}
+      {% if contact.phone %} | {{ contact.phone }}{% endif %}
+      {% if contact.location %} | {{ contact.location }}{% endif %}
+    </div>
+    <div class="links-line">
+      {% if contact.linkedin %}<a href="{{ contact.linkedin }}">LinkedIn</a>{% endif %}
+      {% if contact.github %} | <a href="{{ contact.github }}">GitHub</a>{% endif %}
+      {% if contact.portfolio %} | <a href="{{ contact.portfolio }}">Portfolio</a>{% endif %}
     </div>
   </header>
 
   {% if summary %}
   <section id="summary">
-    <h2>Professional Summary</h2>
+    <h2>Summary</h2>
     <p class="summary-text">{{ summary }}</p>
   </section>
   {% endif %}
 
   {% if skills %}
-  <section id="skills">
+  <section id="technical-skills">
     <h2>Technical Skills</h2>
-    <div class="skills-grid">
+    <div class="skills-block">
       {% if skills is mapping %}
         {% for cat, items in skills.items() %}
           {% if items %}
-          <div class="skill-category">
-            <span class="skill-title">{{ cat|replace('_', ' ')|title }}:</span>
+          <div class="skill-row">
+            <span class="skill-cat">{{ cat|replace('_', ' ')|title }}:</span>
             <span>{{ items|join(', ') }}</span>
           </div>
           {% endif %}
         {% endfor %}
       {% elif skills is iterable %}
-        <div class="skill-category">
+        <div class="skill-row">
           <span>{{ skills|join(', ') }}</span>
         </div>
       {% endif %}
@@ -280,18 +292,39 @@
   </section>
   {% endif %}
 
+  {% if education %}
+  <section id="education">
+    <h2>Education</h2>
+    {% for edu in education %}
+    <div class="edu-row">
+      <div class="edu-left">
+        {{ edu.degree }} | {{ edu.institution }}{% if edu.score %} | {{ edu.score }}{% endif %}
+      </div>
+      <div class="edu-right">
+        {{ edu.year }}
+      </div>
+    </div>
+    {% endfor %}
+  </section>
+  {% endif %}
+
   {% if experience %}
   <section id="experience">
-    <h2>Professional Experience</h2>
+    <h2>Experience</h2>
     {% for job in experience %}
-    <div class="job-entry">
-      <div class="job-header">
+    <div class="exp-item">
+      <div class="item-header">
         <div>
-          <span class="job-title">{{ job.role }}</span> &bull; 
-          <span class="company-name">{{ job.company }}</span>
+          <span class="item-title">{{ job.role }}</span> | 
+          <span class="item-company">{{ job.company }}</span>
+          {% if job.badge_url %}
+          <span class="item-badge"><a href="{{ job.badge_url }}">{{ job.badge_label or '[Certificate]' }}</a></span>
+          {% elif job.certificate_link %}
+          <span class="item-badge"><a href="{{ job.certificate_link }}">[Certificate]</a></span>
+          {% endif %}
         </div>
-        <div class="job-date-loc">
-          {{ job.start_date }} – {{ job.end_date }}{% if job.location %} | {{ job.location }}{% endif %}
+        <div class="item-meta">
+          {{ job.start_date }} | {{ job.end_date }}
         </div>
       </div>
       {% if job.bullets %}
@@ -308,19 +341,19 @@
 
   {% if projects %}
   <section id="projects">
-    <h2>Key Projects</h2>
+    <h2>Projects</h2>
     {% for proj in projects %}
-    <div class="project-entry">
-      <div class="project-header">
+    <div class="proj-item">
+      <div class="item-header">
         <div>
-          <span class="project-title">{{ proj.title }}</span>
+          <span class="item-title">{{ proj.title }}</span>
           {% if proj.tech_stack %}
-          <span class="project-tech">({{ proj.tech_stack|join(', ') }})</span>
+          | <span style="font-weight: 500; color: #374151;">{{ proj.tech_stack|join(' | ') }}</span>
+          {% endif %}
+          {% if proj.link %}
+          <span class="item-badge"><a href="{{ proj.link }}">[Project]</a></span>
           {% endif %}
         </div>
-        {% if proj.link %}
-        <div><a href="{{ proj.link }}" style="font-size: 8.5pt; color: #1d4ed8;">View Demo / Code</a></div>
-        {% endif %}
       </div>
       {% if proj.bullets %}
       <ul class="bullet-list">
@@ -334,47 +367,17 @@
   </section>
   {% endif %}
 
-  {% if education %}
-  <section id="education">
-    <h2>Education</h2>
-    {% for edu in education %}
-    <div class="education-item">
-      <div>
-        <strong>{{ edu.degree }}</strong> — {{ edu.institution }}
-      </div>
-      <div>
-        <span>{{ edu.year }}</span>{% if edu.score %} | <span>{{ edu.score }}</span>{% endif %}
-      </div>
-    </div>
-    {% endfor %}
-  </section>
-  {% endif %}
-
-  {% if certifications %}
-  <section id="certifications">
-    <h2>Certifications & Internships</h2>
-    <ul class="bullet-list">
-      {% for cert in certifications %}
-      <li>
-        {% if cert is mapping %}
-          {% if cert.link %}<a href="{{ cert.link }}" style="color: #1d4ed8; text-decoration: none;">{{ cert.name }}</a>{% else %}{{ cert.name }}{% endif %}
-        {% else %}
-          {{ cert }}
-        {% endif %}
-      </li>
-      {% endfor %}
-    </ul>
-  </section>
-  {% endif %}
-
   {% if publications %}
   <section id="publications">
-    <h2>Publications & Research</h2>
+    <h2>Publications</h2>
     <ul class="bullet-list">
       {% for pub in publications %}
-      <li>
+      <li class="pub-item">
         {% if pub is mapping %}
-          {% if pub.link %}<a href="{{ pub.link }}" style="color: #1d4ed8; text-decoration: none;">{{ pub.title }}</a>{% else %}{{ pub.title }}{% endif %}
+          {{ pub.title }}
+          {% if pub.link %}
+          <a href="{{ pub.link }}">[DOI]</a>
+          {% endif %}
         {% else %}
           {{ pub }}
         {% endif %}

@@ -41,6 +41,14 @@ SCHEMA_FORMAT = """{
       "cloud_devops": ["..."],
       "tools_methodologies": ["..."]
     },
+    "education": [
+      {
+        "degree": "Degree",
+        "institution": "University",
+        "year": "YYYY | YYYY",
+        "score": "Score"
+      }
+    ],
     "experience": [
       {
         "company": "Company",
@@ -48,6 +56,8 @@ SCHEMA_FORMAT = """{
         "location": "Location",
         "start_date": "MM/YYYY",
         "end_date": "Present",
+        "badge_label": "[Certificate]",
+        "badge_url": "https://drive.google.com/...",
         "bullets": ["Action verb + quantifiable achievement + relevant technologies"]
       }
     ],
@@ -57,20 +67,6 @@ SCHEMA_FORMAT = """{
         "tech_stack": ["Tech1", "Tech2"],
         "link": "https://...",
         "bullets": ["Impact and implementation details"]
-      }
-    ],
-    "education": [
-      {
-        "degree": "Degree",
-        "institution": "University",
-        "year": "YYYY",
-        "score": "Score"
-      }
-    ],
-    "certifications": [
-      {
-        "name": "Certificate Name",
-        "link": "https://..."
       }
     ],
     "publications": [
@@ -86,16 +82,21 @@ SCHEMA_FORMAT = """{
 def build_tailoring_prompt(job: Dict[str, Any], master_profile: Dict[str, Any], target_pages: int = 1) -> str:
     """Build the prompt cleanly without string formatting collisions with JSON braces."""
     if target_pages == 1:
-        length_guidance = (
-            "- 1-PAGE RESUME REQUIREMENT: Be concise and punchy. Summary must be 2-3 sentences. "
-            "Select the top 2-3 most impactful bullet points per role. "
-            "Feature the top 2 most aligned projects and top 2 publications/certifications so "
-            "the rendered content fits strictly onto 1 page without overflowing."
+        page_density_guidance = (
+            "- 1-PAGE RESUME & PAGE FILL REQUIREMENT:\n"
+            "  * The resume must strictly fit on 1 single page while filling the page completely (NO EMPTY SPACES at the bottom).\n"
+            "  * Include ALL 5 experience entries from master profile (Accenture, IIT Guwahati, IOCL, NIELIT, NIC).\n"
+            "  * Provide 2 to 3 substantive, impactful STAR bullet points for EACH experience entry.\n"
+            "  * Include both key projects with 3 comprehensive bullet points each.\n"
+            "  * Include all 3 publications.\n"
+            "  * Keep the summary to a strong, detailed 3-4 sentence paragraph highlighting qualifications for this role.\n"
+            "  * Make bullets richly detailed with technical terms and metrics so lines are fully filled without sparse gaps."
         )
     else:
-        length_guidance = (
-            "- 2-PAGE RESUME REQUIREMENT: Provide detailed accomplishments across all experiences "
-            "(3-5 bullet points each), include all relevant projects, full research publications, and verified certificates."
+        page_density_guidance = (
+            "- 2-PAGE RESUME & PAGE FILL REQUIREMENT:\n"
+            "  * Provide comprehensive accomplishments across all 5 experiences (3-5 detailed bullet points each).\n"
+            "  * Include in-depth architectural and implementation bullets across projects, and all 3 research publications to balance and fill 2 pages evenly."
         )
 
     return f"""You are an expert Executive Resume Writer and ATS Optimization Specialist.
@@ -114,18 +115,24 @@ CANDIDATE MASTER PROFILE (JSON):
 \"\"\"{json.dumps(master_profile, ensure_ascii=False)}\"\"\"
 
 CRITICAL RULES:
-1. NO HALLUCINATION: Do NOT invent fake companies, fake degrees, or years of experience the candidate does not have. You may rephrase, reorganize, and emphasize authentic skills and accomplishments from the master profile.
-2. ATS OPTIMIZATION: Seamlessly integrate relevant keywords and terminology from the job description into the Professional Summary and Experience bullet points.
-3. IMPACT & METRICS: Ensure bullet points follow the STAR framework (Action Verb + Context/Tech + Quantifiable Result/Impact).
-4. SUMMARY: Craft a high-impact professional summary explicitly positioning the candidate for this specific role at this company.
-5. ATS MATCH METRICS: Accurately estimate the candidate's ATS Match Score (0 to 100) based on skill coverage, years of experience, and role alignment. Also list matched keywords and missing keywords.
+1. NO HALLUCINATION: Do NOT invent fake companies, fake degrees, or years of experience the candidate does not have. Rephrase, reorganize, and emphasize authentic skills and accomplishments from the master profile.
+2. EXACT ORIGINAL HEADINGS - NO SEPARATE CERTIFICATIONS SECTION:
+   The candidate's original resume has exactly these 6 sections:
+   - Summary
+   - Technical Skills
+   - Education
+   - Experience
+   - Projects
+   - Publications
+   DO NOT create a separate 'Certifications', 'Certifications & Internships', or 'Publications & Research' section.
+   In the original resume, certificates were issued by companies for work experience/internships (IOCL, NIELIT, NIC, IIT Guwahati).
+   Preserve them directly inside their respective Experience entries as `badge_label` (e.g., "[Certificate]" or "[Project]") and `badge_url`.
+3. FILL THE RESUME (ELIMINATE EMPTY SPACES):
+   Empty space or large blank areas on a resume look unprofessional. Ensure bullet points are descriptive, metric-driven, and technical. Each bullet should be substantive, providing concrete context, tools used, and quantifiable results to fill the page height evenly and completely.
+   {page_density_guidance}
+4. ATS OPTIMIZATION: Seamlessly integrate relevant keywords and terminology from the job description into the Summary, Technical Skills, and Experience bullet points.
+5. ATS MATCH METRICS: Accurately estimate the candidate's ATS Match Score (0 to 100) based on skill coverage, years of experience, and role alignment. List distinct matched keywords and missing keywords.
 6. PRESERVE ALL LINKS: Retain all contact links, GitHub, LinkedIn, Portfolio URLs, Project links, Certificate drive links, and Publication DOIs from the master profile.
-7. TARGET RESUME LENGTH ({target_pages} PAGE{'S' if target_pages > 1 else ''}):
-   {length_guidance}
-8. WORK EXPERIENCE CERTIFICATIONS CONTEXT:
-   The candidate's certifications (IOCL, NIELIT, NIC, IIT Guwahati) represent verified professional work experience & research internships with tangible credentials. Treat them as verified engineering experience and prioritize them whenever relevant to the job's domain.
-9. PUBLICATIONS & RESEARCH CONTEXT:
-   The candidate has published peer-reviewed research (ICRAS, Springer, IEEE) in deep learning, computer vision, and machine learning. Preserve relevant publications and their links whenever applicable to technical roles.
 
 Return a STRICT JSON response adhering exactly to this schema:
 {SCHEMA_FORMAT}

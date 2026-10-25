@@ -29,16 +29,26 @@ Strict JSON format to produce:
     "languages": ["Python", "JavaScript", ...],
     "frameworks": ["Django", "FastAPI", "React", ...],
     "databases": ["PostgreSQL", "MongoDB", "Redis", ...],
-    "cloud_devops": ["AWS", "Docker", "Kubernetes", "CI/CD", ...],
+    "cloud_devops": ["Docker", "Linux", ...],
     "tools_methodologies": ["Git", "Agile", "REST APIs", ...]
   },
+  "education": [
+    {
+      "degree": "B.Tech in Computer Science & Engineering",
+      "institution": "University Name",
+      "year": "YYYY | YYYY",
+      "score": "CGPA: 8.5/10"
+    }
+  ],
   "experience": [
     {
       "company": "Company Name",
-      "role": "Software Engineer",
+      "role": "Role Title",
       "location": "City, Country",
-      "start_date": "MM/YYYY or YYYY",
-      "end_date": "Present or MM/YYYY",
+      "start_date": "MM/YYYY or Mon YYYY",
+      "end_date": "Present or Mon YYYY",
+      "badge_label": "[Certificate] or [Project]",
+      "badge_url": "https://...",
       "bullets": [
         "Action verb + quantifiable achievement + technologies used",
         "..."
@@ -56,20 +66,6 @@ Strict JSON format to produce:
       ]
     }
   ],
-  "education": [
-    {
-      "degree": "B.Tech in Computer Science",
-      "institution": "University Name",
-      "year": "2020",
-      "score": "8.5 CGPA or percentage"
-    }
-  ],
-  "certifications": [
-    {
-      "name": "Certificate Name",
-      "link": "https://..."
-    }
-  ],
   "publications": [
     {
       "title": "Paper Title",
@@ -80,17 +76,20 @@ Strict JSON format to produce:
 
 Instructions:
 1. Extract ALL details accurately. Do not omit any work experience or technical skills.
-2. CRITICAL - HYPERLINKS & URLs:
+2. CRITICAL - ORIGINAL HEADINGS & WORK EXPERIENCE CERTIFICATES:
+   - In the candidate's original resume, certificates (IOCL, NIELIT, NIC, IIT Guwahati) were issued by the company/institution for internships/work experience.
+   - DO NOT create a separate 'certifications' array or heading. Keep all certificates inside the respective `experience` entry under `badge_label` (e.g. "[Certificate]" or "[Project]") and `badge_url`.
+3. CRITICAL - HYPERLINKS & URLs:
    - Pay close attention to the "EXTRACTED CLICKABLE HYPERLINKS" section below.
    - Associate each URL with its proper entity:
      - Map portfolio URL to contact.portfolio
      - Map github URL to contact.github
      - Map linkedin URL to contact.linkedin
      - Map project demo / code URLs to the corresponding item in the projects array as "link"
-     - Map certificate drive links to certifications array as "link"
+     - Map company-issued certificate / project drive links to the respective item in experience as "badge_label" and "badge_url"
      - Map publication/DOI URLs to publications array as "link"
-3. If certain links or contact info are not present, set them to empty strings.
-4. Return ONLY valid JSON, with no markdown code blocks or surrounding commentary.
+4. If certain links or contact info are not present, set them to empty strings or null.
+5. Return ONLY valid JSON, with no markdown code blocks or surrounding commentary.
 """
 
 
@@ -199,24 +198,40 @@ def parse_master_resume(
     client = genai.Client(api_key=gemini_key)
     prompt = f"{RESUME_SCHEMA_PROMPT}\n\nRAW RESUME TEXT:\n{raw_text}\n{links_section}"
 
-    try:
-        response = client.models.generate_content(
-            model=selected_model,
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                temperature=0.2
+    max_retries = 3
+    response = None
+    for attempt in range(max_retries):
+        try:
+            response = client.models.generate_content(
+                model=selected_model,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    temperature=0.2
+                )
             )
-        )
-    except Exception as e:
-        err_msg = str(e)
-        if "404" in err_msg or "NOT_FOUND" in err_msg or "not found" in err_msg.lower():
-            from src.models_manager import display_models_table, list_available_models
-            print(f"\n[!] Model '{selected_model}' is not available or has been retired by Google.")
-            models = list_available_models(api_key=gemini_key)
-            display_models_table(models, current_model=selected_model)
-            print("Tip: Run `python main.py set-model <model-name>` or pass `--model <model-name>`.\n")
-        raise
+            break
+        except Exception as e:
+            err_msg = str(e)
+            if "404" in err_msg or "NOT_FOUND" in err_msg or "not found" in err_msg.lower():
+                from src.models_manager import display_models_table, list_available_models
+                print(f"\n[!] Model '{selected_model}' is not available or has been retired by Google.")
+                models = list_available_models(api_key=gemini_key)
+                display_models_table(models, current_model=selected_model)
+                print("Tip: Run `python main.py set-model <model-name>` or pass `--model <model-name>`.\n")
+                raise
+            elif "11002" in err_msg or "getaddrinfo" in err_msg or "503" in err_msg or "UNAVAILABLE" in err_msg:
+                if attempt < max_retries - 1:
+                    wait_time = (attempt + 1) * 3
+                    print(f"[!] Network issue ({err_msg}). Retrying in {wait_time}s (attempt {attempt+1}/{max_retries})...")
+                    import time
+                    time.sleep(wait_time)
+                    continue
+                elif target_output.exists():
+                    print(f"[!] Network connection failed ({err_msg}). Using existing verified profile at {target_output}...")
+                    with open(target_output, "r", encoding="utf-8") as f:
+                        return json.load(f)
+            raise
 
     clean_text = response.text.strip()
     if clean_text.startswith("```json"):
@@ -245,7 +260,7 @@ def parse_master_resume(
 
 
 def export_profile_to_markdown(profile: Dict[str, Any], output_path: Path):
-    """Exports structured resume profile to a clean, human-readable Markdown format."""
+    """Exports structured resume profile to match original resume headings and badge links."""
     contact = profile.get("contact", {})
     contact_parts = []
     if contact.get("email"):
@@ -267,7 +282,7 @@ def export_profile_to_markdown(profile: Dict[str, Any], output_path: Path):
         f"# {profile.get('name', 'Your Name')}",
         contact_line,
         "",
-        "## Professional Summary",
+        "## Summary",
         profile.get("summary", ""),
         "",
         "## Technical Skills"
@@ -282,18 +297,40 @@ def export_profile_to_markdown(profile: Dict[str, Any], output_path: Path):
     elif isinstance(skills, list):
         lines.append(f"- {', '.join(skills)}")
 
+    if profile.get("education"):
+        lines.append("")
+        lines.append("## Education")
+        for edu in profile.get("education", []):
+            score_part = f" - {edu.get('score', '')}" if edu.get("score") else ""
+            lines.append(f"- **{edu.get('degree', '')}**, {edu.get('institution', '')} ({edu.get('year', '')}){score_part}")
+
     lines.append("")
-    lines.append("## Professional Experience")
+    lines.append("## Experience")
     for exp in profile.get("experience", []):
-        header = f"### {exp.get('role', '')} | {exp.get('company', '')}"
-        date_loc = f"*{exp.get('start_date', '')} - {exp.get('end_date', '')} | {exp.get('location', '')}*"
-        lines.extend([header, date_loc])
+        badge = ""
+        if exp.get("badge_url"):
+            badge_label = exp.get("badge_label") or "[Certificate]"
+            badge = f" [{badge_label}]({exp['badge_url']})"
+        elif exp.get("certificate_link"):
+            badge = f" [[Certificate]]({exp['certificate_link']})"
+
+        header = f"### {exp.get('role', '')} | {exp.get('company', '')}{badge}"
+        date_loc_parts = []
+        if exp.get("start_date") or exp.get("end_date"):
+            date_loc_parts.append(f"{exp.get('start_date', '')} - {exp.get('end_date', '')}")
+        if exp.get("location"):
+            date_loc_parts.append(exp.get("location"))
+        date_loc = f"*{' | '.join(date_loc_parts)}*" if date_loc_parts else ""
+
+        lines.append(header)
+        if date_loc:
+            lines.append(date_loc)
         for b in exp.get("bullets", []):
             lines.append(f"- {b}")
         lines.append("")
 
     if profile.get("projects"):
-        lines.append("## Key Projects")
+        lines.append("## Projects")
         for proj in profile.get("projects", []):
             tech = f" ({', '.join(proj.get('tech_stack', []))})" if proj.get("tech_stack") else ""
             title = proj.get("title", "")
@@ -303,23 +340,6 @@ def export_profile_to_markdown(profile: Dict[str, Any], output_path: Path):
             for b in proj.get("bullets", []):
                 lines.append(f"- {b}")
             lines.append("")
-
-    if profile.get("education"):
-        lines.append("## Education")
-        for edu in profile.get("education", []):
-            lines.append(f"- **{edu.get('degree', '')}**, {edu.get('institution', '')} ({edu.get('year', '')}) - {edu.get('score', '')}")
-        lines.append("")
-
-    if profile.get("certifications"):
-        lines.append("## Certifications")
-        for cert in profile.get("certifications", []):
-            if isinstance(cert, dict):
-                c_name = cert.get("name", "")
-                c_link = cert.get("link", "")
-                lines.append(f"- [{c_name}]({c_link})" if c_link else f"- {c_name}")
-            else:
-                lines.append(f"- {cert}")
-        lines.append("")
 
     if profile.get("publications"):
         lines.append("## Publications")
