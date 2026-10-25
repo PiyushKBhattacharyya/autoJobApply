@@ -44,8 +44,22 @@ def display_stats(stats: Dict[str, int]):
     console.print(table)
 
 
+def copy_to_clipboard(text: str) -> bool:
+    """Copies text to the system clipboard on Windows using PowerShell."""
+    try:
+        # Escape single quotes for PowerShell string literal
+        escaped = text.replace("'", "''")
+        cmd = f"Set-Clipboard -Value '{escaped}'"
+        subprocess.run(["powershell", "-NoProfile", "-Command", cmd], capture_output=True, check=False)
+        return True
+    except Exception:
+        return False
+
+
 def display_job_card(job: Dict[str, Any], ats_score: int, matched_kw: str, missing_kw: str, resume_path: str):
     score_color = "green" if ats_score >= 75 else ("yellow" if ats_score >= 60 else "red")
+    is_easy = job.get("is_easy_apply", True)
+    apply_type = "[bold green]⚡ Direct Easy Apply (Naukri)[/bold green]" if is_easy else "[bold yellow]🌐 Company Career Portal (External)[/bold yellow]"
 
     content = f"""
 [bold white]Title:[/bold white] {job.get('title')}
@@ -53,6 +67,7 @@ def display_job_card(job: Dict[str, Any], ats_score: int, matched_kw: str, missi
 [bold white]Location:[/bold white] {job.get('location')}
 [bold white]Experience:[/bold white] {job.get('experience')}
 [bold white]Salary / CTC:[/bold white] [bold yellow]{job.get('salary_text')}[/bold yellow]
+[bold white]Application Route:[/bold white] {apply_type}
 
 [bold white]ATS Match Score:[/bold white] [{score_color} bold]{ats_score}%[/{score_color} bold]
 [bold green]Matched Keywords:[/bold green] {matched_kw or 'None'}
@@ -65,7 +80,6 @@ def display_job_card(job: Dict[str, Any], ats_score: int, matched_kw: str, missi
     console.print(Panel(content, title=f"Job Match: {job.get('company')}", border_style="cyan"))
 
 
-
 def open_file_in_viewer(file_path: str):
     """Opens a file (e.g. PDF) in the default system viewer on Windows."""
     if os.path.exists(file_path):
@@ -75,3 +89,4 @@ def open_file_in_viewer(file_path: str):
             console.print(f"[red]Could not open file: {e}[/red]")
     else:
         console.print(f"[red]File does not exist: {file_path}[/red]")
+

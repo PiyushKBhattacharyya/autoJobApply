@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 import webbrowser
 from pathlib import Path
 
@@ -173,7 +174,12 @@ def cmd_tailor(model, pages):
 )
 @click.option("--model", help="Gemini model to use (e.g. gemini-3.8-flash)")
 @click.option("--pages", type=click.IntRange(1, 2), help="Target resume length: 1 or 2 pages")
-def cmd_run(mode, model, pages):
+@click.option(
+    "--route",
+    type=click.Choice(["both", "easy-only"], case_sensitive=False),
+    help="Application route: 'both' (Direct + External) or 'easy-only' (Naukri 1-click only)"
+)
+def cmd_run(mode, model, pages, route):
     """Run full workflow: Search -> Tailor -> Apply (Supervised or Auto)."""
     print_banner()
     config = load_config()
@@ -194,7 +200,24 @@ def cmd_run(mode, model, pages):
     else:
         target_pages = config.resume.target_pages
 
-    console.print(f"[bold magenta]▶ Running in {run_mode.upper()} mode with model: [bold cyan]{active_model}[/bold cyan] ({target_pages}-page target)[/bold magenta]\n")
+    # Determine application route (both vs easy apply only)
+    if route is not None:
+        selected_route = "easy_only" if route == "easy-only" else "both"
+    elif run_mode == "supervised":
+        route_choice = Prompt.ask(
+            "Which application routes would you like to target?\n"
+            "  [1] Both (⚡ Direct Easy Apply on Naukri + 🌐 Assisted Company Portal Apply)\n"
+            "  [2] Easy Apply Only (⚡ Strict 1-click apply on Naukri only, skip external company sites)\n"
+            "Select option [bold cyan](1 or 2)[/bold cyan]",
+            choices=["1", "2"],
+            default="1" if config.bot.apply_route == "both" else "2"
+        )
+        selected_route = "both" if route_choice == "1" else "easy_only"
+    else:
+        selected_route = config.bot.apply_route
+
+    route_desc = "⚡ Direct Easy Apply Only" if selected_route == "easy_only" else "⚡ Direct Apply + 🌐 Assisted Company Portal"
+    console.print(f"[bold magenta]▶ Running in {run_mode.upper()} mode | Model: [bold cyan]{active_model}[/bold cyan] | Target: {target_pages}-page | Route: {route_desc}[/bold magenta]\n")
 
     # 1. Check master profile exists
     if not config.resume.master_profile_abs.exists():
@@ -219,8 +242,10 @@ def cmd_run(mode, model, pages):
             console.print(f"[bold]({idx}/{len(pending_tailor)}) Tailoring for {job['company']} - {job['title']}...[/bold]")
             try:
                 tailor_resume_for_job(job, model_name=active_model, target_pages=target_pages)
+                time.sleep(2.5)
             except Exception as e:
                 console.print(f"[red]Failed to tailor: {e}[/red]")
+                time.sleep(4.0)
     else:
         console.print("\n[bold cyan]Step 2/3: All discovered jobs already have tailored resumes.[/bold cyan]")
 
@@ -246,7 +271,7 @@ def cmd_run(mode, model, pages):
         if run_mode == "auto":
             if ats_score >= config.bot.min_match_score:
                 console.print(f"[bold green]Auto applying (Score {ats_score}% >= Threshold {config.bot.min_match_score}%)...[/bold green]")
-                applier.apply_to_job(job)
+                applier.apply_to_job(job, easy_apply_only=(selected_route == "easy_only"), interactive=False)
             else:
                 console.print(f"[yellow]Skipping auto-apply: Score {ats_score}% < Min Threshold {config.bot.min_match_score}%[/yellow]")
                 update_application(job["job_id"], status="SKIPPED", notes=f"Score {ats_score}% below threshold")
@@ -263,7 +288,7 @@ def cmd_run(mode, model, pages):
 
             if choice == "a":
                 console.print("[green]Applying to job...[/green]")
-                applier.apply_to_job(job)
+                applier.apply_to_job(job, easy_apply_only=(selected_route == "easy_only"), interactive=True)
                 action_loop = False
             elif choice == "p":
                 pdf_path = job.get("tailored_resume_path")

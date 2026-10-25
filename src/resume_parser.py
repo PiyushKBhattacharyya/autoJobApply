@@ -176,8 +176,10 @@ def parse_master_resume(
         )
 
     if not gemini_key:
+        from src.tailor import print_api_key_help
+        print_api_key_help()
         raise ValueError(
-            "GEMINI_API_KEY is not set. Please add it to your .env file or environment variables."
+            "GEMINI_API_KEY is not set. Please follow the instructions above to configure your key in .env."
         )
 
     print(f"Extracting raw text and clickable hyperlinks from {target_pdf.name}...")
@@ -213,7 +215,11 @@ def parse_master_resume(
             break
         except Exception as e:
             err_msg = str(e)
-            if "404" in err_msg or "NOT_FOUND" in err_msg or "not found" in err_msg.lower():
+            if "API_KEY_INVALID" in err_msg or "INVALID_ARGUMENT" in err_msg and "key" in err_msg.lower() or "PERMISSION_DENIED" in err_msg or "UNAUTHENTICATED" in err_msg:
+                from src.tailor import print_api_key_help
+                print_api_key_help()
+                raise
+            elif "404" in err_msg or "NOT_FOUND" in err_msg or "not found" in err_msg.lower():
                 from src.models_manager import display_models_table, list_available_models
                 print(f"\n[!] Model '{selected_model}' is not available or has been retired by Google.")
                 models = list_available_models(api_key=gemini_key)

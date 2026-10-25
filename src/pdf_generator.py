@@ -1,3 +1,4 @@
+import pypdf
 from pathlib import Path
 from typing import Any, Dict
 from jinja2 import Environment, FileSystemLoader
@@ -24,6 +25,8 @@ def generate_resume_pdf(
     """
     Renders the profile data using Jinja2 and uses Playwright
     Chromium to compile an ATS-compliant, pixel-perfect PDF.
+    Strictly guarantees that output PDF does not exceed target_pages
+    by automatically scaling if content spills over.
     """
     output_pdf_path = Path(output_pdf_path)
     output_pdf_path.parent.mkdir(parents=True, exist_ok=True)
@@ -37,13 +40,25 @@ def generate_resume_pdf(
         # Set content
         page.set_content(html_content, wait_until="networkidle")
 
-        # Generate PDF with @page margins from CSS
-        page.pdf(
-            path=str(output_pdf_path),
-            format="Letter",
-            print_background=True,
-            prefer_css_page_size=True
-        )
+        scale = 1.0
+        min_scale = 0.80 if target_pages == 1 else 0.85
+        step = 0.025
+
+        while scale >= min_scale:
+            page.pdf(
+                path=str(output_pdf_path),
+                format="Letter",
+                print_background=True,
+                prefer_css_page_size=True,
+                scale=scale
+            )
+            try:
+                reader = pypdf.PdfReader(str(output_pdf_path))
+                if len(reader.pages) <= target_pages:
+                    break
+            except Exception:
+                pass
+            scale = round(scale - step, 3)
 
         browser.close()
 

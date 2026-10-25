@@ -83,14 +83,13 @@ def build_tailoring_prompt(job: Dict[str, Any], master_profile: Dict[str, Any], 
     """Build the prompt cleanly without string formatting collisions with JSON braces."""
     if target_pages == 1:
         page_density_guidance = (
-            "- 1-PAGE RESUME & PAGE FILL REQUIREMENT:\n"
-            "  * The resume must strictly fit on 1 single page while filling the page completely (NO EMPTY SPACES at the bottom).\n"
-            "  * Include ALL 5 experience entries from master profile (Accenture, IIT Guwahati, IOCL, NIELIT, NIC).\n"
-            "  * Provide 2 to 3 substantive, impactful STAR bullet points for EACH experience entry.\n"
-            "  * Include both key projects with 3 comprehensive bullet points each.\n"
-            "  * Include all 3 publications.\n"
-            "  * Keep the summary to a strong, detailed 3-4 sentence paragraph highlighting qualifications for this role.\n"
-            "  * Make bullets richly detailed with technical terms and metrics so lines are fully filled without sparse gaps."
+            "- 1-PAGE RESUME STRICT REQUIREMENT:\n"
+            "  * The resume MUST strictly fit onto 1 single page without spilling onto page 2.\n"
+            "  * Summary: Strong, concise 2 to 3 sentences (max 60-75 words) focused on candidate's direct fit.\n"
+            "  * Experience: Exactly 2 high-impact, metric-driven STAR bullet points for each of the 5 experience entries.\n"
+            "  * Projects: Exactly 2 impactful bullets for each of the 2 key projects.\n"
+            "  * Publications: Retain all 3 publications.\n"
+            "  * Keep bullets punchy, concrete, and tightly worded so they cleanly fit on 1 page."
         )
     else:
         page_density_guidance = (
@@ -147,6 +146,31 @@ def clean_company_name(name: str) -> str:
     return re.sub(r"[-\s]+", "_", clean)
 
 
+def print_api_key_help():
+    """Prints clear, friendly instructions on how to obtain and configure a Gemini API key."""
+    from rich.console import Console
+    from rich.panel import Panel
+    c = Console()
+    msg = """
+[bold red]Google Gemini API Key Error Detected[/bold red]
+
+Your Gemini API Key is missing, invalid, or does not have sufficient permissions.
+
+[bold cyan]How to fix this in 3 easy steps:[/bold cyan]
+1. Get a free API key from Google AI Studio:
+   [bold blue underline]https://aistudio.google.com/app/apikey[/bold blue underline]
+
+2. Open the [bold yellow].env[/bold yellow] file in your project folder:
+   [bold white]d:\\Projects\\autoJobApply\\.env[/bold white]
+
+3. Update the key:
+   [bold green]GEMINI_API_KEY=AIzaSy...your_actual_key_here[/bold green]
+
+4. Save the file and re-run your command.
+    """.strip()
+    c.print(Panel(msg, title="[bold red]API Key Troubleshooting Guide[/bold red]", border_style="red"))
+
+
 def tailor_resume_for_job(
     job: Dict[str, Any],
     master_profile: Optional[Dict[str, Any]] = None,
@@ -164,7 +188,8 @@ def tailor_resume_for_job(
     pages = target_pages or config.resume.target_pages
 
     if not gemini_key:
-        raise ValueError("GEMINI_API_KEY is not configured in .env")
+        print_api_key_help()
+        raise ValueError("GEMINI_API_KEY is not configured in .env. Please follow the instructions above.")
 
     # Load master profile if not passed
     if master_profile is None:
@@ -182,36 +207,56 @@ def tailor_resume_for_job(
 
     prompt = build_tailoring_prompt(job, master_profile, target_pages=pages)
 
-    max_retries = 3
+    models_to_try = [selected_model]
+    for m_cand in ["gemini-3.6-flash", "gemini-3.5-flash"]:
+        if m_cand not in models_to_try:
+            models_to_try.append(m_cand)
+
     response = None
-    for attempt in range(max_retries):
-        try:
-            response = client.models.generate_content(
-                model=selected_model,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    temperature=0.3
+    last_err = None
+
+    for curr_model in models_to_try:
+        max_retries = 2
+        for attempt in range(max_retries):
+            try:
+                response = client.models.generate_content(
+                    model=curr_model,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        response_mime_type="application/json",
+                        temperature=0.3
+                    )
                 )
-            )
+                if curr_model != selected_model:
+                    print(f"✓ Succeeded using fallback model: {curr_model}")
+                break
+            except Exception as e:
+                last_err = e
+                err_msg = str(e)
+                if "API_KEY_INVALID" in err_msg or "INVALID_ARGUMENT" in err_msg and "key" in err_msg.lower() or "PERMISSION_DENIED" in err_msg or "UNAUTHENTICATED" in err_msg:
+                    print_api_key_help()
+                    raise
+                elif "429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg or "quota" in err_msg.lower():
+                    print(f"[!] Model '{curr_model}' hit quota limit (429).")
+                    break  # Break inner retry loop to try next fallback model
+                elif "503" in err_msg or "UNAVAILABLE" in err_msg:
+                    if attempt < max_retries - 1:
+                        wait_time = (attempt + 1) * 3
+                        print(f"[!] Gemini busy (503). Retrying in {wait_time}s...")
+                        import time
+                        time.sleep(wait_time)
+                        continue
+                elif "404" in err_msg or "NOT_FOUND" in err_msg:
+                    print(f"[!] Model '{curr_model}' not found (404).")
+                    break
+                else:
+                    raise
+
+        if response is not None:
             break
-        except Exception as e:
-            err_msg = str(e)
-            if "404" in err_msg or "NOT_FOUND" in err_msg or "not found" in err_msg.lower():
-                from src.models_manager import display_models_table, list_available_models
-                print(f"\n[!] Model '{selected_model}' is not available or has been retired by Google.")
-                models = list_available_models(api_key=gemini_key)
-                display_models_table(models, current_model=selected_model)
-                print("Tip: Run `python main.py set-model <model-name>` or pass `--model <model-name>`.\n")
-                raise
-            elif "503" in err_msg or "UNAVAILABLE" in err_msg:
-                if attempt < max_retries - 1:
-                    wait_time = (attempt + 1) * 4
-                    print(f"[!] Gemini busy (503). Retrying in {wait_time}s (attempt {attempt+1}/{max_retries})...")
-                    import time
-                    time.sleep(wait_time)
-                    continue
-            raise
+
+    if response is None:
+        raise last_err or RuntimeError("Failed to generate tailored resume with available Gemini models.")
 
 
     clean_text = response.text.strip()

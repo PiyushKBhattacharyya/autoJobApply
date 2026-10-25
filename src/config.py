@@ -48,6 +48,7 @@ class BotConfig(BaseModel):
     headless: bool = False
     human_delay_range: List[float] = [2.5, 6.0]
     auto_easy_apply: bool = True
+    apply_route: str = "both"  # "both" or "easy_only"
     browser_context_dir: str = ".browser_context"
 
     @property

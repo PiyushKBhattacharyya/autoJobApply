@@ -47,8 +47,11 @@ bot:
   
   # Allow applying to internal Naukri "Apply" / "Easy Apply" postings
   auto_easy_apply: true
+  
+  # Application route: "both" (direct apply + assisted external portal) or "easy_only" (strict 1-click apply only)
+  apply_route: "both"
 
 gemini:
   # Model to use for tailoring and parsing (Use 'python main.py models' to list/change)
-  model_name: "gemini-3.8-flash"
+  model_name: "gemini-3.6-flash"
 
