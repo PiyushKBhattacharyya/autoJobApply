@@ -153,7 +153,7 @@ def cmd_tailor(model):
 
     config = load_config()
     active_model = model or config.gemini.model_name
-    console.print(f"[cyan]Found {len(pending)} jobs to tailor with Gemini [{active_model}]...[/cyan]\n")
+    console.print(f"[cyan]Found {len(pending)} jobs to tailor with Gemini ({active_model})...[/cyan]\n")
     for idx, job in enumerate(pending, 1):
         console.print(f"[bold]({idx}/{len(pending)}) Tailoring for {job['company']} - {job['title']}...[/bold]")
         try:
@@ -177,13 +177,13 @@ def cmd_run(mode, model):
     active_model = model or config.gemini.model_name
     applier = NaukriApplier()
 
-    console.print(f"[bold magenta]▶ Running in {run_mode.upper()} mode with model [{active_model}][/bold magenta]\n")
+    console.print(f"[bold magenta]▶ Running in {run_mode.upper()} mode with model: [bold cyan]{active_model}[/bold cyan][/bold magenta]\n")
 
     # 1. Check master profile exists
     if not config.resume.master_profile_abs.exists():
         console.print(f"[yellow]Master profile not found at {config.resume.master_profile_abs}.[/yellow]")
         if config.resume.master_pdf_abs.exists():
-            console.print(f"[cyan]Parsing master resume PDF first with model [{active_model}]...[/cyan]")
+            console.print(f"[cyan]Parsing master resume PDF first with model ({active_model})...[/cyan]")
             parse_master_resume(model_name=active_model)
         else:
             console.print("[bold red]Please place your PDF at 'data/master_resume.pdf' or run `python main.py parse-resume --pdf <path>` first.[/bold red]")
@@ -200,7 +200,7 @@ def cmd_run(mode, model):
             pending_tailor = get_pending_tailoring_jobs()
 
         # Tailor pending jobs
-        console.print(f"[cyan]Tailoring {len(pending_tailor)} discovered jobs with model [{active_model}]...[/cyan]")
+        console.print(f"[cyan]Tailoring {len(pending_tailor)} discovered jobs with model ({active_model})...[/cyan]")
         for job in pending_tailor:
             try:
                 tailor_resume_for_job(job, model_name=active_model)
@@ -208,6 +208,7 @@ def cmd_run(mode, model):
                 console.print(f"[red]Failed to tailor: {e}[/red]")
 
         ready_jobs = get_tailored_jobs_ready_for_review()
+
 
 
     if not ready_jobs:

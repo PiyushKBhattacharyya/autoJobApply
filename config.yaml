@@ -9,11 +9,11 @@ search:
   
   # Desired CTC range in LPA (Lakhs Per Annum)
   # Set min_ctc_lpa to 0 to include listings without explicit salary or entry-level
-  min_ctc_lpa: 12
+  min_ctc_lpa: 16
   max_ctc_lpa: 25
   
   # Candidate experience in years
-  experience_years: 3
+  experience_years: 1
   
   # Maximum listings to scrape per search run
   max_results: 25

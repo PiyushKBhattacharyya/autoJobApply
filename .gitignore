@@ -18,3 +18,6 @@ output/resumes/*.pdf
 data/*.db
 data/*.sqlite3
 data/master_resume.pdf
+data/master_profile.json
+data/master_profile.md
+

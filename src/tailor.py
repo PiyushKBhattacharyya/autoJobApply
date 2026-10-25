@@ -1,7 +1,16 @@
 import json
 import re
+import sys
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
+
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+
 from google import genai
 from google.genai import types
 
@@ -10,44 +19,28 @@ from src.db import update_application
 from src.pdf_generator import generate_resume_pdf
 
 
-TAILORING_PROMPT = """
-You are an expert Executive Resume Writer and ATS Optimization Specialist.
-Your task is to tailor a candidate's master resume profile specifically for a target job posting to maximize ATS keyword scoring, recruiter relevance, and interview conversion.
 
-TARGET JOB DETAILS:
-- Title: {job_title}
-- Company: {company}
-- Location: {location}
-- Experience Required: {experience}
-- Skills Mentioned: {skills_required}
-- Full Job Description:
-\"\"\"{job_description}\"\"\"
-
-CANDIDATE MASTER PROFILE (JSON):
-\"\"\"{master_profile_json}\"\"\"
-
-CRITICAL RULES:
-1. NO HALLUCINATION: Do NOT invent fake companies, fake degrees, or years of experience the candidate does not have. You may rephrase, reorganize, and emphasize authentic skills and accomplishments from the master profile.
-2. ATS OPTIMIZATION: Seamlessly integrate relevant keywords and terminology from the job description into the Professional Summary and Experience bullet points.
-3. IMPACT & METRICS: Ensure bullet points follow the STAR framework (Action Verb + Context/Tech + Quantifiable Result/Impact).
-4. SUMMARY: Craft a high-impact 3-4 sentence professional summary explicitly positioning the candidate for this specific role at this company.
-5. ATS MATCH METRICS: Accurately estimate the candidate's ATS Match Score (0 to 100) based on skill coverage, years of experience, and role alignment. Also list matched keywords and missing keywords.
-
-Return a STRICT JSON response adhering to this schema:
-{
+SCHEMA_FORMAT = """{
   "ats_match_score": 85,
   "matched_keywords": ["Python", "FastAPI", "Docker", "Microservices"],
   "missing_keywords": ["Kubernetes", "Kafka"],
   "tailored_profile": {
     "name": "Full Name",
-    "contact": { ... },
+    "contact": {
+      "email": "user@example.com",
+      "phone": "+91...",
+      "location": "City, State",
+      "linkedin": "https://linkedin.com/in/...",
+      "github": "https://github.com/...",
+      "portfolio": "https://..."
+    },
     "summary": "Tailored executive summary...",
     "skills": {
-      "languages": [...],
-      "frameworks": [...],
-      "databases": [...],
-      "cloud_devops": [...],
-      "tools_methodologies": [...]
+      "languages": ["..."],
+      "frameworks": ["..."],
+      "databases": ["..."],
+      "cloud_devops": ["..."],
+      "tools_methodologies": ["..."]
     },
     "experience": [
       {
@@ -56,16 +49,70 @@ Return a STRICT JSON response adhering to this schema:
         "location": "Location",
         "start_date": "MM/YYYY",
         "end_date": "Present",
-        "bullets": [ ... ]
+        "bullets": ["Action verb + quantifiable achievement + relevant technologies"]
       }
     ],
-    "projects": [ ... ],
-    "education": [ ... ],
-    "certifications": [ ... ]
+    "projects": [
+      {
+        "title": "Project Title",
+        "tech_stack": ["Tech1", "Tech2"],
+        "link": "https://...",
+        "bullets": ["Impact and implementation details"]
+      }
+    ],
+    "education": [
+      {
+        "degree": "Degree",
+        "institution": "University",
+        "year": "YYYY",
+        "score": "Score"
+      }
+    ],
+    "certifications": [
+      {
+        "name": "Certificate Name",
+        "link": "https://..."
+      }
+    ],
+    "publications": [
+      {
+        "title": "Paper Title",
+        "link": "https://..."
+      }
+    ]
   }
-}
+}"""
 
-Return ONLY valid raw JSON.
+
+def build_tailoring_prompt(job: Dict[str, Any], master_profile: Dict[str, Any]) -> str:
+    """Build the prompt cleanly without string formatting collisions with JSON braces."""
+    return f"""You are an expert Executive Resume Writer and ATS Optimization Specialist.
+Your task is to tailor a candidate's master resume profile specifically for a target job posting to maximize ATS keyword scoring, recruiter relevance, and interview conversion.
+
+TARGET JOB DETAILS:
+- Title: {job.get('title', '')}
+- Company: {job.get('company', '')}
+- Location: {job.get('location', '')}
+- Experience Required: {job.get('experience', '')}
+- Skills Mentioned: {job.get('skills_required', '')}
+- Full Job Description:
+\"\"\"{job.get('job_description', '')[:4000]}\"\"\"
+
+CANDIDATE MASTER PROFILE (JSON):
+\"\"\"{json.dumps(master_profile, ensure_ascii=False)}\"\"\"
+
+CRITICAL RULES:
+1. NO HALLUCINATION: Do NOT invent fake companies, fake degrees, or years of experience the candidate does not have. You may rephrase, reorganize, and emphasize authentic skills and accomplishments from the master profile.
+2. ATS OPTIMIZATION: Seamlessly integrate relevant keywords and terminology from the job description into the Professional Summary and Experience bullet points.
+3. IMPACT & METRICS: Ensure bullet points follow the STAR framework (Action Verb + Context/Tech + Quantifiable Result/Impact).
+4. SUMMARY: Craft a high-impact 3-4 sentence professional summary explicitly positioning the candidate for this specific role at this company.
+5. ATS MATCH METRICS: Accurately estimate the candidate's ATS Match Score (0 to 100) based on skill coverage, years of experience, and role alignment. Also list matched keywords and missing keywords.
+6. PRESERVE ALL LINKS: Retain all contact links, GitHub, LinkedIn, Portfolio URLs, Project links, Certificate drive links, and Publication DOIs from the master profile.
+
+Return a STRICT JSON response adhering exactly to this schema:
+{SCHEMA_FORMAT}
+
+Return ONLY valid raw JSON without markdown code blocks.
 """
 
 
@@ -103,18 +150,10 @@ def tailor_resume_for_job(
         with open(profile_path, "r", encoding="utf-8") as f:
             master_profile = json.load(f)
 
-    print(f"Tailoring resume for [{job.get('title')}] at [{job.get('company')}] using [{selected_model}]...")
+    print(f"Tailoring resume for [{job.get('title')}] at [{job.get('company')}] using {selected_model}...")
     client = genai.Client(api_key=gemini_key)
 
-    prompt = TAILORING_PROMPT.format(
-        job_title=job.get("title", ""),
-        company=job.get("company", ""),
-        location=job.get("location", ""),
-        experience=job.get("experience", ""),
-        skills_required=job.get("skills_required", ""),
-        job_description=job.get("job_description", "")[:4000],
-        master_profile_json=json.dumps(master_profile, ensure_ascii=False)
-    )
+    prompt = build_tailoring_prompt(job, master_profile)
 
     try:
         response = client.models.generate_content(
@@ -128,13 +167,12 @@ def tailor_resume_for_job(
     except Exception as e:
         err_msg = str(e)
         if "404" in err_msg or "NOT_FOUND" in err_msg or "not found" in err_msg.lower():
-            from src.models_manager import list_available_models, display_models_table
+            from src.models_manager import display_models_table, list_available_models
             print(f"\n[!] Model '{selected_model}' is not available or has been retired by Google.")
             models = list_available_models(api_key=gemini_key)
             display_models_table(models, current_model=selected_model)
-            print(f"Tip: Run `python main.py set-model <model-name>` or pass `--model <model-name>`.\n")
+            print("Tip: Run `python main.py set-model <model-name>` or pass `--model <model-name>`.\n")
         raise
-
 
     clean_text = response.text.strip()
     if clean_text.startswith("```json"):
@@ -165,12 +203,13 @@ def tailor_resume_for_job(
         job_id=job_id,
         status="TAILORED",
         ats_score=ats_score,
-        missing_keywords=", ".join(missing_kw),
-        matched_keywords=", ".join(matched_kw),
+        missing_keywords=", ".join(missing_kw) if isinstance(missing_kw, list) else str(missing_kw),
+        matched_keywords=", ".join(matched_kw) if isinstance(matched_kw, list) else str(matched_kw),
         resume_path=str(output_pdf_path),
         tailored_json=json.dumps(tailored_profile, ensure_ascii=False),
         notes=f"ATS Score: {ats_score}%"
     )
 
-    print(f"✓ Tailored PDF generated: {output_pdf_path} (ATS Score: {ats_score}%)")
+    print(f"[OK] Tailored PDF generated: {output_pdf_path} (ATS Score: {ats_score}%)")
     return result, output_pdf_path
+
