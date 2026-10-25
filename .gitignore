@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+
+# Browser session context (contains sensitive cookies/credentials)
+.browser_context/
+*.session
+
+# Secrets
+.env
+
+# Data files & generated artifacts
+output/resumes/*.pdf
+data/*.db
+data/*.sqlite3
+data/master_resume.pdf
