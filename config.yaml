@@ -28,6 +28,10 @@ resume:
   # Directory where tailored PDFs will be generated
   output_dir: "output/resumes"
 
+  # Target resume length: 1 (single-page concise ATS) or 2 (detailed multi-page format)
+  target_pages: 1
+
+
 bot:
   # Application mode: "supervised" (interactive approval) or "auto" (hands-free applying)
   mode: "supervised"

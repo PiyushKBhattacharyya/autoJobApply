@@ -24,6 +24,8 @@ class ResumeConfig(BaseModel):
     master_pdf_path: str = "data/master_resume.pdf"
     master_profile_path: str = "data/master_profile.json"
     output_dir: str = "output/resumes"
+    target_pages: int = 1
+
 
     @property
     def master_pdf_abs(self) -> Path:

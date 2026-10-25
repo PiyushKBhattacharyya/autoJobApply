@@ -143,7 +143,8 @@ def cmd_search(role, city, min_ctc, max_ctc, limit):
 
 @cli.command("tailor")
 @click.option("--model", help="Gemini model to use (e.g. gemini-3.8-flash)")
-def cmd_tailor(model):
+@click.option("--pages", type=click.IntRange(1, 2), help="Target resume length: 1 or 2 pages")
+def cmd_tailor(model, pages):
     """Tailor resume and generate ATS-compliant PDFs for all pending discovered jobs."""
     print_banner()
     pending = get_pending_tailoring_jobs()
@@ -153,11 +154,13 @@ def cmd_tailor(model):
 
     config = load_config()
     active_model = model or config.gemini.model_name
-    console.print(f"[cyan]Found {len(pending)} jobs to tailor with Gemini ({active_model})...[/cyan]\n")
+    target_pages = pages or config.resume.target_pages
+
+    console.print(f"[cyan]Found {len(pending)} jobs to tailor with Gemini ({active_model}) - Target: {target_pages} page(s)...[/cyan]\n")
     for idx, job in enumerate(pending, 1):
         console.print(f"[bold]({idx}/{len(pending)}) Tailoring for {job['company']} - {job['title']}...[/bold]")
         try:
-            tailor_resume_for_job(job, model_name=active_model)
+            tailor_resume_for_job(job, model_name=active_model, target_pages=target_pages)
         except Exception as e:
             console.print(f"[red]Error tailoring for job {job['job_id']}: {e}[/red]")
 
@@ -169,7 +172,8 @@ def cmd_tailor(model):
     help="Execution mode: supervised (interactive approval) or auto"
 )
 @click.option("--model", help="Gemini model to use (e.g. gemini-3.8-flash)")
-def cmd_run(mode, model):
+@click.option("--pages", type=click.IntRange(1, 2), help="Target resume length: 1 or 2 pages")
+def cmd_run(mode, model, pages):
     """Run full workflow: Search -> Tailor -> Apply (Supervised or Auto)."""
     print_banner()
     config = load_config()
@@ -177,7 +181,20 @@ def cmd_run(mode, model):
     active_model = model or config.gemini.model_name
     applier = NaukriApplier()
 
-    console.print(f"[bold magenta]▶ Running in {run_mode.upper()} mode with model: [bold cyan]{active_model}[/bold cyan][/bold magenta]\n")
+    # Determine target resume length
+    if pages is not None:
+        target_pages = pages
+    elif run_mode == "supervised":
+        pages_choice = Prompt.ask(
+            "How many pages should your tailored resume be? [bold cyan](1 or 2)[/bold cyan]",
+            choices=["1", "2"],
+            default=str(config.resume.target_pages)
+        )
+        target_pages = int(pages_choice)
+    else:
+        target_pages = config.resume.target_pages
+
+    console.print(f"[bold magenta]▶ Running in {run_mode.upper()} mode with model: [bold cyan]{active_model}[/bold cyan] ({target_pages}-page target)[/bold magenta]\n")
 
     # 1. Check master profile exists
     if not config.resume.master_profile_abs.exists():
@@ -200,14 +217,15 @@ def cmd_run(mode, model):
             pending_tailor = get_pending_tailoring_jobs()
 
         # Tailor pending jobs
-        console.print(f"[cyan]Tailoring {len(pending_tailor)} discovered jobs with model ({active_model})...[/cyan]")
+        console.print(f"[cyan]Tailoring {len(pending_tailor)} discovered jobs with model ({active_model}) - {target_pages} page(s)...[/cyan]")
         for job in pending_tailor:
             try:
-                tailor_resume_for_job(job, model_name=active_model)
+                tailor_resume_for_job(job, model_name=active_model, target_pages=target_pages)
             except Exception as e:
                 console.print(f"[red]Failed to tailor: {e}[/red]")
 
         ready_jobs = get_tailored_jobs_ready_for_review()
+
 
 
 

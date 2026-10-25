@@ -19,7 +19,6 @@ from src.db import update_application
 from src.pdf_generator import generate_resume_pdf
 
 
-
 SCHEMA_FORMAT = """{
   "ats_match_score": 85,
   "matched_keywords": ["Python", "FastAPI", "Docker", "Microservices"],
@@ -84,8 +83,21 @@ SCHEMA_FORMAT = """{
 }"""
 
 
-def build_tailoring_prompt(job: Dict[str, Any], master_profile: Dict[str, Any]) -> str:
+def build_tailoring_prompt(job: Dict[str, Any], master_profile: Dict[str, Any], target_pages: int = 1) -> str:
     """Build the prompt cleanly without string formatting collisions with JSON braces."""
+    if target_pages == 1:
+        length_guidance = (
+            "- 1-PAGE RESUME REQUIREMENT: Be concise and punchy. Summary must be 2-3 sentences. "
+            "Select the top 2-3 most impactful bullet points per role. "
+            "Feature the top 2 most aligned projects and top 2 publications/certifications so "
+            "the rendered content fits strictly onto 1 page without overflowing."
+        )
+    else:
+        length_guidance = (
+            "- 2-PAGE RESUME REQUIREMENT: Provide detailed accomplishments across all experiences "
+            "(3-5 bullet points each), include all relevant projects, full research publications, and verified certificates."
+        )
+
     return f"""You are an expert Executive Resume Writer and ATS Optimization Specialist.
 Your task is to tailor a candidate's master resume profile specifically for a target job posting to maximize ATS keyword scoring, recruiter relevance, and interview conversion.
 
@@ -105,9 +117,15 @@ CRITICAL RULES:
 1. NO HALLUCINATION: Do NOT invent fake companies, fake degrees, or years of experience the candidate does not have. You may rephrase, reorganize, and emphasize authentic skills and accomplishments from the master profile.
 2. ATS OPTIMIZATION: Seamlessly integrate relevant keywords and terminology from the job description into the Professional Summary and Experience bullet points.
 3. IMPACT & METRICS: Ensure bullet points follow the STAR framework (Action Verb + Context/Tech + Quantifiable Result/Impact).
-4. SUMMARY: Craft a high-impact 3-4 sentence professional summary explicitly positioning the candidate for this specific role at this company.
+4. SUMMARY: Craft a high-impact professional summary explicitly positioning the candidate for this specific role at this company.
 5. ATS MATCH METRICS: Accurately estimate the candidate's ATS Match Score (0 to 100) based on skill coverage, years of experience, and role alignment. Also list matched keywords and missing keywords.
 6. PRESERVE ALL LINKS: Retain all contact links, GitHub, LinkedIn, Portfolio URLs, Project links, Certificate drive links, and Publication DOIs from the master profile.
+7. TARGET RESUME LENGTH ({target_pages} PAGE{'S' if target_pages > 1 else ''}):
+   {length_guidance}
+8. WORK EXPERIENCE CERTIFICATIONS CONTEXT:
+   The candidate's certifications (IOCL, NIELIT, NIC, IIT Guwahati) represent verified professional work experience & research internships with tangible credentials. Treat them as verified engineering experience and prioritize them whenever relevant to the job's domain.
+9. PUBLICATIONS & RESEARCH CONTEXT:
+   The candidate has published peer-reviewed research (ICRAS, Springer, IEEE) in deep learning, computer vision, and machine learning. Preserve relevant publications and their links whenever applicable to technical roles.
 
 Return a STRICT JSON response adhering exactly to this schema:
 {SCHEMA_FORMAT}
@@ -126,7 +144,8 @@ def tailor_resume_for_job(
     job: Dict[str, Any],
     master_profile: Optional[Dict[str, Any]] = None,
     api_key: Optional[str] = None,
-    model_name: Optional[str] = None
+    model_name: Optional[str] = None,
+    target_pages: Optional[int] = None
 ) -> Tuple[Dict[str, Any], Path]:
     """
     Tailor master resume for a specific job using Gemini,
@@ -135,6 +154,7 @@ def tailor_resume_for_job(
     config = load_config()
     gemini_key = api_key or config.gemini.api_key
     selected_model = model_name or config.gemini.model_name
+    pages = target_pages or config.resume.target_pages
 
     if not gemini_key:
         raise ValueError("GEMINI_API_KEY is not configured in .env")
@@ -150,29 +170,42 @@ def tailor_resume_for_job(
         with open(profile_path, "r", encoding="utf-8") as f:
             master_profile = json.load(f)
 
-    print(f"Tailoring resume for [{job.get('title')}] at [{job.get('company')}] using {selected_model}...")
+    print(f"Tailoring resume ({pages}-page) for [{job.get('title')}] at [{job.get('company')}] using {selected_model}...")
     client = genai.Client(api_key=gemini_key)
 
-    prompt = build_tailoring_prompt(job, master_profile)
+    prompt = build_tailoring_prompt(job, master_profile, target_pages=pages)
 
-    try:
-        response = client.models.generate_content(
-            model=selected_model,
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                temperature=0.3
+    max_retries = 3
+    response = None
+    for attempt in range(max_retries):
+        try:
+            response = client.models.generate_content(
+                model=selected_model,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    temperature=0.3
+                )
             )
-        )
-    except Exception as e:
-        err_msg = str(e)
-        if "404" in err_msg or "NOT_FOUND" in err_msg or "not found" in err_msg.lower():
-            from src.models_manager import display_models_table, list_available_models
-            print(f"\n[!] Model '{selected_model}' is not available or has been retired by Google.")
-            models = list_available_models(api_key=gemini_key)
-            display_models_table(models, current_model=selected_model)
-            print("Tip: Run `python main.py set-model <model-name>` or pass `--model <model-name>`.\n")
-        raise
+            break
+        except Exception as e:
+            err_msg = str(e)
+            if "404" in err_msg or "NOT_FOUND" in err_msg or "not found" in err_msg.lower():
+                from src.models_manager import display_models_table, list_available_models
+                print(f"\n[!] Model '{selected_model}' is not available or has been retired by Google.")
+                models = list_available_models(api_key=gemini_key)
+                display_models_table(models, current_model=selected_model)
+                print("Tip: Run `python main.py set-model <model-name>` or pass `--model <model-name>`.\n")
+                raise
+            elif "503" in err_msg or "UNAVAILABLE" in err_msg:
+                if attempt < max_retries - 1:
+                    wait_time = (attempt + 1) * 4
+                    print(f"[!] Gemini busy (503). Retrying in {wait_time}s (attempt {attempt+1}/{max_retries})...")
+                    import time
+                    time.sleep(wait_time)
+                    continue
+            raise
+
 
     clean_text = response.text.strip()
     if clean_text.startswith("```json"):
@@ -195,8 +228,8 @@ def tailor_resume_for_job(
     pdf_filename = f"{job_id}_{company_slug}.pdf"
     output_pdf_path = config.resume.output_dir_abs / pdf_filename
 
-    # Generate ATS PDF
-    generate_resume_pdf(tailored_profile, output_pdf_path)
+    # Generate ATS PDF with target_pages styling
+    generate_resume_pdf(tailored_profile, output_pdf_path, target_pages=pages)
 
     # Update database
     update_application(
@@ -207,9 +240,8 @@ def tailor_resume_for_job(
         matched_keywords=", ".join(matched_kw) if isinstance(matched_kw, list) else str(matched_kw),
         resume_path=str(output_pdf_path),
         tailored_json=json.dumps(tailored_profile, ensure_ascii=False),
-        notes=f"ATS Score: {ats_score}%"
+        notes=f"ATS Score: {ats_score}% ({pages}-page)"
     )
 
-    print(f"[OK] Tailored PDF generated: {output_pdf_path} (ATS Score: {ats_score}%)")
+    print(f"[OK] Tailored PDF generated ({pages}-page): {output_pdf_path} (ATS Score: {ats_score}%)")
     return result, output_pdf_path
-

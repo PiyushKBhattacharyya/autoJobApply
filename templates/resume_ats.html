@@ -4,19 +4,117 @@
   <meta charset="UTF-8">
   <title>{{ name }} - Resume</title>
   <style>
-    @page {
-      size: letter;
-      margin: 0.5in 0.6in 0.5in 0.6in;
-    }
     * {
       box-sizing: border-box;
       margin: 0;
       padding: 0;
     }
+    {% if target_pages == 1 %}
+    @page {
+      size: letter;
+      margin: 0.3in 0.42in 0.3in 0.42in;
+    }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      font-size: 10pt;
-      line-height: 1.4;
+      font-size: 8.8pt;
+      line-height: 1.28;
+      color: #111827;
+      background: #ffffff;
+    }
+    header {
+      text-align: center;
+      margin-bottom: 6px;
+      border-bottom: 1.5px solid #1f2937;
+      padding-bottom: 4px;
+    }
+    h1 {
+      font-size: 15pt;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      color: #111827;
+      margin-bottom: 2px;
+      text-transform: uppercase;
+    }
+    .contact-info {
+      font-size: 8.5pt;
+      color: #4b5563;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 6px;
+    }
+    section {
+      margin-bottom: 6px;
+    }
+    h2 {
+      font-size: 9.8pt;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #111827;
+      border-bottom: 1px solid #d1d5db;
+      padding-bottom: 1px;
+      margin-bottom: 3px;
+    }
+    .summary-text {
+      font-size: 8.6pt;
+      line-height: 1.28;
+      color: #374151;
+      text-align: justify;
+    }
+    .skills-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .skill-category {
+      font-size: 8.6pt;
+      line-height: 1.24;
+    }
+    .job-entry {
+      margin-bottom: 5px;
+    }
+    .job-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      font-size: 9pt;
+    }
+    ul.bullet-list {
+      margin-top: 1.5px;
+      margin-left: 14px;
+      padding-left: 0;
+    }
+    ul.bullet-list li {
+      font-size: 8.6pt;
+      margin-bottom: 1.5px;
+      color: #374151;
+      line-height: 1.26;
+    }
+    .project-entry {
+      margin-bottom: 4px;
+    }
+    .project-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      font-size: 8.8pt;
+    }
+    .education-item {
+      display: flex;
+      justify-content: space-between;
+      font-size: 8.6pt;
+      margin-bottom: 2px;
+    }
+    {% else %}
+    @page {
+      size: letter;
+      margin: 0.5in 0.6in 0.5in 0.6in;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-size: 9.8pt;
+      line-height: 1.38;
       color: #111827;
       background: #ffffff;
     }
@@ -41,10 +139,6 @@
       flex-wrap: wrap;
       justify-content: center;
       gap: 8px;
-    }
-    .contact-info a {
-      color: #1d4ed8;
-      text-decoration: none;
     }
     section {
       margin-bottom: 12px;
@@ -73,10 +167,6 @@
       font-size: 9.5pt;
       line-height: 1.35;
     }
-    .skill-title {
-      font-weight: 600;
-      color: #1f2937;
-    }
     .job-entry {
       margin-bottom: 10px;
     }
@@ -85,20 +175,6 @@
       justify-content: space-between;
       align-items: baseline;
       font-size: 10pt;
-    }
-    .job-title {
-      font-weight: 700;
-      color: #111827;
-    }
-    .company-name {
-      font-weight: 600;
-      color: #374151;
-    }
-    .job-date-loc {
-      font-size: 9pt;
-      font-style: italic;
-      color: #4b5563;
-      text-align: right;
     }
     ul.bullet-list {
       margin-top: 3px;
@@ -120,20 +196,44 @@
       align-items: baseline;
       font-size: 9.5pt;
     }
-    .project-title {
-      font-weight: 700;
-      color: #111827;
-    }
-    .project-tech {
-      font-size: 9pt;
-      color: #4b5563;
-      font-style: italic;
-    }
     .education-item {
       display: flex;
       justify-content: space-between;
       font-size: 9.5pt;
       margin-bottom: 3px;
+    }
+    {% endif %}
+
+    .contact-info a {
+      color: #1d4ed8;
+      text-decoration: none;
+    }
+    .skill-title {
+      font-weight: 600;
+      color: #1f2937;
+    }
+    .job-title {
+      font-weight: 700;
+      color: #111827;
+    }
+    .company-name {
+      font-weight: 600;
+      color: #374151;
+    }
+    .job-date-loc {
+      font-size: 8.8pt;
+      font-style: italic;
+      color: #4b5563;
+      text-align: right;
+    }
+    .project-title {
+      font-weight: 700;
+      color: #111827;
+    }
+    .project-tech {
+      font-size: 8.5pt;
+      color: #4b5563;
+      font-style: italic;
     }
   </style>
 </head>
@@ -219,7 +319,7 @@
           {% endif %}
         </div>
         {% if proj.link %}
-        <div><a href="{{ proj.link }}" style="font-size: 8.5pt; color: #1d4ed8;">View Code / Demo</a></div>
+        <div><a href="{{ proj.link }}" style="font-size: 8.5pt; color: #1d4ed8;">View Demo / Code</a></div>
         {% endif %}
       </div>
       {% if proj.bullets %}
@@ -252,7 +352,7 @@
 
   {% if certifications %}
   <section id="certifications">
-    <h2>Certifications</h2>
+    <h2>Certifications & Internships</h2>
     <ul class="bullet-list">
       {% for cert in certifications %}
       <li>
@@ -286,4 +386,3 @@
 
 </body>
 </html>
-
