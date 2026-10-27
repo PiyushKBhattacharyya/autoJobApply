@@ -22,6 +22,7 @@ def init_db():
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS jobs (
             job_id TEXT PRIMARY KEY,
+            platform TEXT DEFAULT 'naukri',
             title TEXT NOT NULL,
             company TEXT NOT NULL,
             location TEXT,
@@ -36,6 +37,12 @@ def init_db():
             discovered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
+
+    # Check and add platform column if upgrading from earlier version
+    try:
+        cursor.execute("ALTER TABLE jobs ADD COLUMN platform TEXT DEFAULT 'naukri'")
+    except sqlite3.OperationalError:
+        pass  # Already exists
 
     # Table for tracking application workflow
     cursor.execute("""
@@ -63,20 +70,23 @@ def save_job(job_data: Dict[str, Any]) -> bool:
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
+        platform = job_data.get("platform", "naukri")
         cursor.execute("""
             INSERT INTO jobs (
-                job_id, title, company, location, experience,
+                job_id, platform, title, company, location, experience,
                 salary_text, min_ctc_lpa, max_ctc_lpa,
                 job_description, skills_required, apply_url,
                 is_easy_apply
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(job_id) DO UPDATE SET
+                platform = excluded.platform,
                 is_easy_apply = excluded.is_easy_apply,
                 salary_text = excluded.salary_text,
                 min_ctc_lpa = excluded.min_ctc_lpa,
                 max_ctc_lpa = excluded.max_ctc_lpa
         """, (
             job_data["job_id"],
+            platform,
             job_data.get("title", "Unknown"),
             job_data.get("company", "Unknown"),
             job_data.get("location", ""),

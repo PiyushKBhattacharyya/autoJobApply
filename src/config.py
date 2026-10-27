@@ -11,6 +11,12 @@ load_dotenv()
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
+class PlatformsConfig(BaseModel):
+    naukri: bool = True
+    indeed: bool = True
+    linkedin: bool = True
+
+
 class SearchConfig(BaseModel):
     role: str = "Full Stack Developer"
     city: str = "Bengaluru"
@@ -65,6 +71,7 @@ class GeminiConfig(BaseModel):
 
 
 class AppConfig(BaseModel):
+    platforms: PlatformsConfig = Field(default_factory=PlatformsConfig)
     search: SearchConfig = Field(default_factory=SearchConfig)
     resume: ResumeConfig = Field(default_factory=ResumeConfig)
     bot: BotConfig = Field(default_factory=BotConfig)

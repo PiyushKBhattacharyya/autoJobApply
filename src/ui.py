@@ -59,9 +59,15 @@ def copy_to_clipboard(text: str) -> bool:
 def display_job_card(job: Dict[str, Any], ats_score: int, matched_kw: str, missing_kw: str, resume_path: str):
     score_color = "green" if ats_score >= 75 else ("yellow" if ats_score >= 60 else "red")
     is_easy = job.get("is_easy_apply", True)
-    apply_type = "[bold green]⚡ Direct Easy Apply (Naukri)[/bold green]" if is_easy else "[bold yellow]🌐 Company Career Portal (External)[/bold yellow]"
+    platform = (job.get("platform") or "naukri").capitalize()
+    
+    if is_easy:
+        apply_type = f"[bold green]⚡ Direct Easy Apply ({platform})[/bold green]"
+    else:
+        apply_type = f"[bold yellow]🌐 Company Career Portal (External via {platform})[/bold yellow]"
 
     content = f"""
+[bold white]Platform:[/bold white] [bold magenta]💼 {platform}[/bold magenta]
 [bold white]Title:[/bold white] {job.get('title')}
 [bold white]Company:[/bold white] {job.get('company')}
 [bold white]Location:[/bold white] {job.get('location')}

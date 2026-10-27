@@ -8,6 +8,8 @@ ENV/
 
 # Browser session context (contains sensitive cookies/credentials)
 .browser_context/
+.browser_context_indeed/
+.browser_context_linkedin
 *.session
 
 # Secrets

@@ -14,7 +14,6 @@ if sys.platform == "win32":
 import click
 from rich.prompt import Confirm, Prompt
 
-from src.applier import NaukriApplier
 from src.config import BASE_DIR, load_config
 from src.db import (
     get_pending_tailoring_jobs,
@@ -23,6 +22,9 @@ from src.db import (
     init_db,
     update_application,
 )
+from src.dispatcher import UnifiedApplier
+from src.indeed_scraper import IndeedScraper
+from src.linkedin_scraper import LinkedInScraper
 from src.naukri_scraper import NaukriScraper
 from src.resume_parser import parse_master_resume
 from src.tailor import tailor_resume_for_job
@@ -93,11 +95,35 @@ def cmd_set_model(model_name):
 
 
 @cli.command("login")
-def cmd_login():
-    """Open Naukri in a browser to log in and save session cookies."""
+@click.option(
+    "--platform",
+    type=click.Choice(["naukri", "indeed", "linkedin", "all"], case_sensitive=False),
+    default=None,
+    help="Platform to log in to: 'naukri', 'indeed', 'linkedin', or 'all'"
+)
+def cmd_login(platform):
+    """Open platform login page in a browser to save session cookies."""
     print_banner()
-    scraper = NaukriScraper(headless=False)
-    scraper.interactive_login()
+
+    target_platform = platform
+    if not target_platform:
+        target_platform = Prompt.ask(
+            "Select platform to set up login session",
+            choices=["naukri", "indeed", "linkedin", "all"],
+            default="naukri"
+        )
+
+    if target_platform in ("naukri", "all"):
+        scraper = NaukriScraper(headless=False)
+        scraper.interactive_login()
+
+    if target_platform in ("indeed", "all"):
+        scraper = IndeedScraper(headless=False)
+        scraper.interactive_login()
+
+    if target_platform in ("linkedin", "all"):
+        scraper = LinkedInScraper(headless=False)
+        scraper.interactive_login()
 
 
 @cli.command("parse-resume")
@@ -128,18 +154,58 @@ def cmd_parse_resume(pdf, model):
 @click.option("--min-ctc", type=float, help="Minimum CTC in LPA")
 @click.option("--max-ctc", type=float, help="Maximum CTC in LPA")
 @click.option("--limit", type=int, help="Maximum jobs to fetch")
-def cmd_search(role, city, min_ctc, max_ctc, limit):
-    """Search Naukri for job postings and save matching listings to DB."""
+@click.option(
+    "--platform",
+    type=click.Choice(["naukri", "indeed", "linkedin", "all"], case_sensitive=False),
+    default=None,
+    help="Platform to search: 'naukri', 'indeed', 'linkedin', or 'all' (defaults to enabled platforms in config)"
+)
+def cmd_search(role, city, min_ctc, max_ctc, limit, platform):
+    """Search job boards (Naukri, LinkedIn, Indeed) and save matching listings to DB."""
     print_banner()
-    scraper = NaukriScraper()
-    jobs = scraper.search_jobs(
-        role=role,
-        city=city,
-        min_ctc_lpa=min_ctc,
-        max_ctc_lpa=max_ctc,
-        max_results=limit
-    )
-    console.print(f"[bold green]✓ Discovered {len(jobs)} jobs matching criteria.[/bold green]")
+    config = load_config()
+    target_platform = platform.lower() if platform else "enabled"
+
+    search_naukri = (target_platform in ("naukri", "all")) or (target_platform == "enabled" and config.platforms.naukri)
+    search_indeed = (target_platform in ("indeed", "all")) or (target_platform == "enabled" and config.platforms.indeed)
+    search_linkedin = (target_platform in ("linkedin", "all")) or (target_platform == "enabled" and config.platforms.linkedin)
+
+    total_discovered = 0
+
+    if search_naukri:
+        try:
+            console.print("[cyan]Searching Naukri...[/cyan]")
+            scraper = NaukriScraper()
+            jobs = scraper.search_jobs(
+                role=role, city=city, min_ctc_lpa=min_ctc, max_ctc_lpa=max_ctc, max_results=limit
+            )
+            total_discovered += len(jobs)
+        except Exception as e:
+            console.print(f"[yellow]Naukri search warning: {e}[/yellow]")
+
+    if search_indeed:
+        try:
+            console.print("[cyan]Searching Indeed...[/cyan]")
+            scraper = IndeedScraper()
+            jobs = scraper.search_jobs(
+                role=role, city=city, min_ctc_lpa=min_ctc, max_ctc_lpa=max_ctc, max_results=limit
+            )
+            total_discovered += len(jobs)
+        except Exception as e:
+            console.print(f"[yellow]Indeed search warning: {e}[/yellow]")
+
+    if search_linkedin:
+        try:
+            console.print("[cyan]Searching LinkedIn...[/cyan]")
+            scraper = LinkedInScraper()
+            jobs = scraper.search_jobs(
+                role=role, city=city, max_results=limit
+            )
+            total_discovered += len(jobs)
+        except Exception as e:
+            console.print(f"[yellow]LinkedIn search warning: {e}[/yellow]")
+
+    console.print(f"[bold green]✓ Discovered {total_discovered} jobs matching criteria.[/bold green]")
 
 
 @cli.command("tailor")
@@ -185,7 +251,7 @@ def cmd_run(mode, model, pages, route):
     config = load_config()
     run_mode = (mode or config.bot.mode).lower()
     active_model = model or config.gemini.model_name
-    applier = NaukriApplier()
+    applier = UnifiedApplier()
 
     # Determine target resume length
     if pages is not None:
@@ -209,8 +275,8 @@ def cmd_run(mode, model, pages, route):
     elif run_mode == "supervised":
         route_choice = Prompt.ask(
             "Which application routes would you like to target?\n"
-            "  [1] Both (⚡ Direct Easy Apply on Naukri + 🌐 Assisted Company Portal Apply)\n"
-            "  [2] Easy Apply Only (⚡ Strict 1-click apply on Naukri only, skip external company sites)\n"
+            "  [1] Both (⚡ Direct Easy Apply + 🌐 Assisted Company Portal Apply)\n"
+            "  [2] Easy Apply Only (⚡ Strict 1-click apply only across enabled platforms)\n"
             "Select option [bold cyan](1 or 2)[/bold cyan]",
             choices=["1", "2"],
             default="2" if config.bot.apply_route == "easy_only" else "1"
@@ -220,7 +286,9 @@ def cmd_run(mode, model, pages, route):
         selected_route = config.bot.apply_route
 
     route_desc = "⚡ Direct Easy Apply Only" if selected_route == "easy_only" else "⚡ Direct Apply + 🌐 Assisted Company Portal"
-    console.print(f"[bold magenta]▶ Running in {run_mode.upper()} mode | Model: [bold cyan]{active_model}[/bold cyan] | Target: {target_pages}-page | Route: {route_desc}[/bold magenta]\n")
+    active_plat_list = [p for p in ["naukri", "indeed", "linkedin"] if getattr(config.platforms, p, True)]
+    plat_str = ", ".join(p.capitalize() for p in active_plat_list)
+    console.print(f"[bold magenta]▶ Running in {run_mode.upper()} mode | Platforms: [cyan]{plat_str}[/cyan] | Model: [bold cyan]{active_model}[/bold cyan] | Target: {target_pages}-page | Route: {route_desc}[/bold magenta]\n")
 
     # 1. Check master profile exists
     if not config.resume.master_profile_abs.exists():
@@ -232,10 +300,29 @@ def cmd_run(mode, model, pages, route):
             console.print("[bold red]Please place your PDF at 'data/master_resume.pdf' or run `python main.py parse-resume --pdf <path>` first.[/bold red]")
             return
 
-    # 2. Step 1: Scan openings according to criteria
-    console.print(f"\n[bold cyan]Step 1/3: Scanning Naukri for '{config.search.role}' in '{config.search.city}' (CTC: {config.search.min_ctc_lpa}-{config.search.max_ctc_lpa} LPA)...[/bold cyan]")
-    scraper = NaukriScraper()
-    scraper.search_jobs()
+    # 2. Step 1: Scan openings according to criteria across enabled platforms
+    console.print(f"\n[bold cyan]Step 1/3: Scanning active job boards for '{config.search.role}' in '{config.search.city}' (Exp <= {config.search.experience_years} yrs)...[/bold cyan]")
+    
+    if config.platforms.naukri:
+        try:
+            naukri_scraper = NaukriScraper()
+            naukri_scraper.search_jobs()
+        except Exception as e:
+            console.print(f"[yellow]Naukri scan warning: {e}[/yellow]")
+
+    if config.platforms.indeed:
+        try:
+            indeed_scraper = IndeedScraper()
+            indeed_scraper.search_jobs()
+        except Exception as e:
+            console.print(f"[yellow]Indeed scan warning: {e}[/yellow]")
+
+    if config.platforms.linkedin:
+        try:
+            linkedin_scraper = LinkedInScraper()
+            linkedin_scraper.search_jobs()
+        except Exception as e:
+            console.print(f"[yellow]LinkedIn scan warning: {e}[/yellow]")
 
     # 3. Step 2: Tailor resumes for discovered jobs
     is_easy_only = (selected_route == "easy_only")

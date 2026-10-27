@@ -1,3 +1,8 @@
+platforms:
+  naukri: true
+  indeed: false
+  linkedin: true
+
 search:
   role: Full Stack Developer
   city: Bengaluru
